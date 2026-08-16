@@ -6,31 +6,45 @@ import {
 
 export type LandmarkList = { x: number; y: number; z: number; visibility?: number }[];
 
+// Pinned to exact version — prevents silent breakage from CDN `@latest` drift
+const MEDIAPIPE_WASM_URL =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+const MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+
+export type DetectorState = 'idle' | 'loading' | 'ready' | 'error';
+
 export class PoseDetector {
   private landmarker: PoseLandmarker | null = null;
   private lastVideoTime = -1;
+  state: DetectorState = 'idle';
+  error: string | null = null;
 
   async init(): Promise<void> {
-    const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-    );
-    this.landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-        delegate: 'GPU',
-      },
-      runningMode: 'VIDEO',
-      numPoses: 1,
-    });
+    this.state = 'loading';
+    try {
+      const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
+      this.landmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+      });
+      this.state = 'ready';
+    } catch (err) {
+      this.state = 'error';
+      this.error = (err as Error).message;
+      throw err; // propagate so CameraView can show user-facing error
+    }
   }
 
   detect(video: HTMLVideoElement): LandmarkList | null {
-    if (!this.landmarker || video.readyState < 2) return null;
+    if (this.state !== 'ready' || video.readyState < 2) return null;
     if (video.currentTime === this.lastVideoTime) return null;
     this.lastVideoTime = video.currentTime;
-
-    const result: PoseLandmarkerResult = this.landmarker.detectForVideo(
+    const result: PoseLandmarkerResult = this.landmarker!.detectForVideo(
       video,
       performance.now()
     );

@@ -17,10 +17,13 @@ const MODULES = [
   { index: 5, label: 'Lower-Right', short: 'LR' },
 ];
 
+// Must match MAX_POSITION_MM in firmware/config.h
+const MAX_MM = 55;
+
 function positionColor(position: number) {
-  if (position <= 0) return 'var(--text-dim)';
-  if (position <= 30) return 'var(--accent-cyan)';
-  if (position <= 60) return 'var(--accent-violet)';
+  if (position <= 0)        return 'var(--text-dim)';
+  if (position <= MAX_MM * 0.33) return 'var(--accent-cyan)';
+  if (position <= MAX_MM * 0.66) return 'var(--accent-violet)';
   return 'var(--accent-orange)';
 }
 
@@ -64,8 +67,10 @@ export const SpineVisualizer: React.FC<SpineVisualizerProps> = ({
         />
 
         {MODULES.map((module) => {
-          const target = Math.min(100, Math.max(0, targetPositions[module.index] ?? 0));
-          const current = Math.min(100, Math.max(0, currentPositions[module.index] ?? 0));
+          const target = Math.min(MAX_MM, Math.max(0, targetPositions[module.index] ?? 0));
+          const current = Math.min(MAX_MM, Math.max(0, currentPositions[module.index] ?? 0));
+          const targetPct = (target / MAX_MM) * 100;
+          const currentPct = (current / MAX_MM) * 100;
           const activeColor = positionColor(target);
           const active = target > 0 || current > 0;
 
@@ -111,7 +116,7 @@ export const SpineVisualizer: React.FC<SpineVisualizerProps> = ({
                   style={{
                     height: '100%',
                     background: activeColor,
-                    width: `${target}%`,
+                    width: `${targetPct}%`,
                     transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
                 />
@@ -122,7 +127,7 @@ export const SpineVisualizer: React.FC<SpineVisualizerProps> = ({
                     left: 0,
                     height: '100%',
                     background: 'rgba(255,255,255,0.45)',
-                    width: `${current}%`,
+                    width: `${currentPct}%`,
                     transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     mixBlendMode: 'screen',
                   }}

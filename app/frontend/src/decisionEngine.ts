@@ -2,6 +2,10 @@ import type { PostureData } from './postureAnalyzer';
 
 export type Mode = 'office' | 'gaming' | 'study' | 'relax';
 
+// Module index → 2×3 grid position
+// 0=UL  1=UR
+// 2=ML  3=MR
+// 4=LL  5=LR
 export const MODULE_LABELS = [
   'Upper-Left',
   'Upper-Right',
@@ -10,6 +14,9 @@ export const MODULE_LABELS = [
   'Lower-Left',
   'Lower-Right',
 ];
+
+// Must match MAX_POSITION_MM in firmware/config.h
+const MAX_POSITION_MM = 55;
 
 const MODE_SCALE: Record<Mode, number> = {
   office: 1.0,
@@ -21,30 +28,54 @@ const MODE_SCALE: Record<Mode, number> = {
 export const CONFIDENCE_THRESHOLD = 0.65;
 const MIN_POSITION_CHANGE = 3;
 
+/**
+ * Map forward-lean deviation (degrees) to raw module positions (0–MAX_POSITION_MM).
+ * Multipliers tuned so 25° forward deviation → roughly full mid extension (~55mm).
+ *   upper: 25 * 1.4 = 35mm  (upper back needs less correction)
+ *   mid:   25 * 2.2 = 55mm  (lumbar bears the most load)
+ *   lower: 25 * 1.8 = 45mm  (sacral support)
+ */
 function forwardPositions(deviation: number): { upper: number; mid: number; lower: number } {
   const d = Math.max(0, deviation);
   return {
-    upper: Math.min(100, d * 2.0),
-    mid: Math.min(100, d * 3.5),
-    lower: Math.min(100, d * 2.8),
+    upper: Math.min(MAX_POSITION_MM, d * 1.4),
+    mid:   Math.min(MAX_POSITION_MM, d * 2.2),
+    lower: Math.min(MAX_POSITION_MM, d * 1.8),
   };
 }
 
+/**
+ * Velocity bonus: adds extra extension (mm) when the user is slumping fast.
+ * Returned value is added directly to position, not to the angle.
+ * Capped at 15mm so it can't push beyond MAX_POSITION_MM on its own.
+ */
 function velocityBonus(velocitySpine: number): number {
   if (velocitySpine < 1) return 0;
-  if (velocitySpine < 3) return 5;
-  if (velocitySpine < 6) return 12;
-  return 18;
+  if (velocitySpine < 3) return 4;
+  if (velocitySpine < 6) return 9;
+  return 15;
 }
 
+/**
+ * Lateral split: when the user leans RIGHT, the RIGHT column must push harder
+ * (it presses them back toward centre). When leaning LEFT, LEFT column pushes harder.
+ *
+ * NOTE: This was previously inverted (left bonus on right lean), which made
+ *       the chair actively push the user further into their lean.
+ */
 function lateralSplit(lateralDeviation: number): { leftBonus: number; rightBonus: number } {
-  const boost = Math.min(40, Math.abs(lateralDeviation) * 3.0);
-  if (lateralDeviation > 2) return { leftBonus: boost, rightBonus: 0 };
-  if (lateralDeviation < -2) return { leftBonus: 0, rightBonus: boost };
+  const boost = Math.min(MAX_POSITION_MM * 0.7, Math.abs(lateralDeviation) * 3.0);
+  if (lateralDeviation > 2)  return { leftBonus: 0,     rightBonus: boost }; // lean right → right column pushes
+  if (lateralDeviation < -2) return { leftBonus: boost,  rightBonus: 0   }; // lean left  → left  column pushes
   return { leftBonus: 0, rightBonus: 0 };
 }
 
 let prevPositions = [0, 0, 0, 0, 0, 0];
+
+/** Call at session start and end to clear the dead-band reference positions. */
+export function resetDecisionState(): void {
+  prevPositions = [0, 0, 0, 0, 0, 0];
+}
 
 export function computeTargetPositions(posture: PostureData, mode: Mode): number[] {
   if (posture.confidence < CONFIDENCE_THRESHOLD) return prevPositions;
@@ -52,17 +83,20 @@ export function computeTargetPositions(posture: PostureData, mode: Mode): number
   const scale = MODE_SCALE[mode];
   const fwd = Math.max(0, posture.spineDeviation ?? posture.spineAngleDeg);
   const lat = posture.lateralDeviation ?? posture.lateralLeanDeg;
-  const fwdPos = forwardPositions(fwd + velocityBonus(posture.velocitySpine) / scale);
+
+  // Velocity bonus is in mm, applied after scale so it respects mode aggressiveness
+  const vBonus = velocityBonus(posture.velocitySpine) * scale;
+  const fwdPos = forwardPositions(fwd * scale);
   const latMod = lateralSplit(lat);
 
   const raw = [
-    fwdPos.upper + latMod.leftBonus,
-    fwdPos.upper + latMod.rightBonus,
-    fwdPos.mid + latMod.leftBonus,
-    fwdPos.mid + latMod.rightBonus,
-    fwdPos.lower + latMod.leftBonus,
-    fwdPos.lower + latMod.rightBonus,
-  ].map((value) => Math.min(100, Math.max(0, Math.round(value * scale))));
+    fwdPos.upper + latMod.leftBonus  + vBonus, // UL
+    fwdPos.upper + latMod.rightBonus + vBonus, // UR
+    fwdPos.mid   + latMod.leftBonus  + vBonus, // ML
+    fwdPos.mid   + latMod.rightBonus + vBonus, // MR
+    fwdPos.lower + latMod.leftBonus  + vBonus, // LL
+    fwdPos.lower + latMod.rightBonus + vBonus, // LR
+  ].map((value) => Math.min(MAX_POSITION_MM, Math.max(0, Math.round(value))));
 
   const result = raw.map((value, index) =>
     Math.abs(value - prevPositions[index]) >= MIN_POSITION_CHANGE ? value : prevPositions[index]
@@ -77,7 +111,7 @@ export function isLateralLean(posture: PostureData): boolean {
 
 export function lateralLeanDirection(posture: PostureData): 'left' | 'right' | null {
   const lat = posture.lateralDeviation ?? posture.lateralLeanDeg;
-  if (lat > 3) return 'right';
+  if (lat > 3)  return 'right';
   if (lat < -3) return 'left';
   return null;
 }

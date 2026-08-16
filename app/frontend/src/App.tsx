@@ -2,15 +2,15 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Bluetooth, RefreshCw, Activity, Sliders, Eye, Cpu } from 'lucide-react';
 import { createBLEManager, StatusData } from './bleManager';
 import { LandmarkList } from './poseDetector';
-import { analyzePose, CalibrationBaseline, PostureData } from './postureAnalyzer';
-import { CONFIDENCE_THRESHOLD, computeTargetPositions, Mode } from './decisionEngine';
-import { 
-  getProfile, 
-  createProfile, 
-  getSessions, 
-  getCalibration, 
-  saveCalibration as saveCalToApi, 
-  logSession 
+import { analyzePose, CalibrationBaseline, PostureData, resetPostureVelocityState } from './postureAnalyzer';
+import { CONFIDENCE_THRESHOLD, computeTargetPositions, Mode, resetDecisionState } from './decisionEngine';
+import {
+  getProfile,
+  createProfile,
+  getSessions,
+  getCalibration,
+  saveCalibration as saveCalToApi,
+  logSession
 } from './apiClient';
 
 // Import components
@@ -25,7 +25,7 @@ import { LateralLeanAlert } from './components/LateralLeanAlert';
 export default function App() {
   const [userId, setUserId] = useState<number | null>(1);
   const [mode, setMode] = useState<Mode>('office');
-  
+
   // Operational tracking mode: 'cv' (Computer Vision only) vs 'both' (CV + hardware BLE write control)
   const [trackingMode, setTrackingMode] = useState<'cv' | 'both'>('both');
 
@@ -34,7 +34,8 @@ export default function App() {
   const [isBleConnecting, setIsBleConnecting] = useState(false);
   const [bleStatus, setBleStatus] = useState<StatusData | null>(null);
   const [lastPacketTime, setLastPacketTime] = useState<number | null>(null);
-  
+  const [bleError, setBleError] = useState<string | null>(null);
+
   // System states
   const [isTracking, setIsTracking] = useState(false);
   const [calibrating, setCalibrating] = useState(false);
@@ -45,6 +46,7 @@ export default function App() {
 
   // Session stats
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [sessionElapsed, setSessionElapsed] = useState('');
   const [sessionScoreHistory, setSessionScoreHistory] = useState<{ t: number; score: number }[]>([]);
   const [pastSessions, setPastSessions] = useState<any[]>([]);
 
@@ -64,44 +66,71 @@ export default function App() {
     };
   }, [bleManager]);
 
-  // Load user data on startup
+  // BLE packet watchdog — drops "Connected" state after 3s silence (matches firmware 2s failsafe)
   useEffect(() => {
-    async function loadData() {
-      try {
-        let user = await getProfile(1);
-        if (!user || user.detail) {
-          user = await createProfile("User", 175, "office");
-        }
-        setUserId(user.id);
-        setMode(user.mode as Mode);
-
-        // Fetch past sessions
-        const logs = await getSessions(user.id);
-        setPastSessions(logs || []);
-
-        // Fetch calibration
-        const cal = await getCalibration(user.id);
-        if (cal && !cal.detail) {
-          setBaseline({
-            spineAngle0: cal.spine_angle_0,
-            lateralAngle0: cal.lateral_angle_0 ?? 0.0,
-            shoulderWidth: cal.shoulder_width
-          });
-        }
-      } catch (err) {
-        console.warn("FastAPI backend is offline. Using local storage / fallback values.");
+    if (!bleConnected || !lastPacketTime) return;
+    const id = setInterval(() => {
+      if (Date.now() - lastPacketTime > 3000) {
+        setBleConnected(false);
+        setBleStatus(null);
       }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [bleConnected, lastPacketTime]);
+
+  // Load user data on startup — retry loop handles slow backend boot in docker-compose
+  useEffect(() => {
+    async function loadWithRetry(retries = 5): Promise<void> {
+      for (let i = 0; i < retries; i++) {
+        try {
+          let user = await getProfile(1).catch(() => null);
+          if (!user) user = await createProfile('User', 175, 'office');
+          setUserId(user.id);
+          setMode(user.mode as Mode);
+
+          const logs = await getSessions(user.id).catch(() => []);
+          setPastSessions(logs || []);
+
+          const cal = await getCalibration(user.id).catch(() => null);
+          if (cal) {
+            setBaseline({
+              spineAngle0: cal.spine_angle_0,
+              lateralAngle0: cal.lateral_angle_0 ?? 0.0,
+              shoulderWidth: cal.shoulder_width,
+            });
+          }
+          return; // success — exit retry loop
+        } catch {
+          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      console.warn('Backend offline — running in offline mode.');
     }
-    loadData();
+    loadWithRetry();
   }, []);
+
+  // Session elapsed timer — updates every second while session is active
+  useEffect(() => {
+    if (!sessionStartTime) { setSessionElapsed(''); return; }
+    const tick = () => {
+      const s = Math.floor((Date.now() - sessionStartTime) / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      setSessionElapsed(`${mm}:${ss}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [sessionStartTime]);
 
   // Frame processing
   const lastSendTime = useRef<number>(0);
   const handleLandmarks = useCallback((landmarks: LandmarkList) => {
     setCurrentLandmarks(landmarks);
-    
+
     // Analyze pose relative to baseline
     const posture = analyzePose(landmarks, baseline);
+    if (!posture) return; // incomplete landmark set — skip frame
     setLatestPosture(posture);
 
     const positions = computeTargetPositions(posture, mode);
@@ -127,11 +156,12 @@ export default function App() {
 
   const handleCalibrated = async (newBaseline: CalibrationBaseline) => {
     setBaseline(newBaseline);
+    resetPostureVelocityState(); // clear stale velocity after recalibration
     if (userId) {
       try {
         await saveCalToApi(userId, newBaseline.spineAngle0, newBaseline.lateralAngle0, newBaseline.shoulderWidth);
       } catch (err) {
-        console.warn("Unable to save calibration to backend database.");
+        console.warn('Unable to save calibration to backend database.');
       }
     }
   };
@@ -144,7 +174,9 @@ export default function App() {
         setIsBleConnecting(true);
         await bleManager.connect();
       } catch (err) {
-        alert("Web Bluetooth connection failed: " + (err as Error).message);
+        const msg = (err as Error).message;
+        setBleError(msg);
+        setTimeout(() => setBleError(null), 5000);
       } finally {
         setIsBleConnecting(false);
       }
@@ -152,13 +184,18 @@ export default function App() {
   };
 
   const startSession = () => {
+    resetPostureVelocityState();
+    resetDecisionState();
     setSessionStartTime(Date.now());
     setSessionScoreHistory([]);
   };
 
   const endSession = async () => {
+    resetDecisionState();
+
     if (!sessionStartTime || sessionScoreHistory.length === 0) {
       setSessionStartTime(null);
+      setSessionElapsed('');
       return;
     }
 
@@ -173,11 +210,12 @@ export default function App() {
         const refreshed = await getSessions(userId);
         setPastSessions(refreshed || []);
       } catch (err) {
-        console.warn("Backend logs write failed.");
+        console.warn('Backend logs write failed.');
       }
     }
 
     setSessionStartTime(null);
+    setSessionElapsed('');
     setSessionScoreHistory([]);
     setTargetPositions([0, 0, 0, 0, 0, 0]);
     if (bleConnected && trackingMode === 'both') {
@@ -202,7 +240,7 @@ export default function App() {
   return (
     <div style={{ paddingBottom: '60px' }}>
       {/* Header bar */}
-      <header className="glass-panel" style={{ borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderRadius: '0', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <header className="glass-panel" style={{ borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderRadius: '0', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'var(--accent-blue-dark)', width: '38px', height: '38px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '20px', color: '#ffffff', border: '1px solid rgba(255,255,255,0.03)' }}>
             P
@@ -221,191 +259,233 @@ export default function App() {
             ) : (
               <Bluetooth size={16} />
             )}
-            <span>{isBleConnecting ? "Connecting..." : bleConnected ? "Connected" : "Connect Chair"}</span>
+            <span>{isBleConnecting ? 'Connecting...' : bleConnected ? 'Connected' : 'Connect Chair'}</span>
           </button>
 
           {/* Camera Button */}
           <button onClick={() => setIsTracking(!isTracking)} className={`btn ${isTracking ? 'btn-primary' : 'btn-secondary'}`}>
-            <span>{isTracking ? "Stop Camera" : "Enable Tracking"}</span>
+            <span>{isTracking ? 'Stop Camera' : 'Enable Tracking'}</span>
           </button>
         </div>
       </header>
 
-      {/* Main Grid */}
-      <div className="dashboard-grid">
-        
-        {/* Left Column */}
-        <div className="col-8" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          <CameraView 
-            isTracking={isTracking} 
-            score={latestPosture ? latestPosture.postureScore : 100} 
-            onLandmarks={handleLandmarks} 
-          />
+      {/* CV-only mode banner */}
+      {trackingMode === 'cv' && (
+        <div style={{
+          background: 'rgba(59, 130, 246, 0.06)',
+          borderBottom: '1px solid rgba(59, 130, 246, 0.18)',
+          padding: '6px 40px',
+          fontSize: 12,
+          color: 'var(--accent-cyan)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: '0',
+        }}>
+          <Eye size={12} />
+          Computer Vision Mode — posture is analysed but actuator output is not transmitted to chair
+        </div>
+      )}
 
-          <LateralLeanAlert posture={latestPosture} />
+      {/* BLE error toast */}
+      {bleError && (
+        <div style={{
+          position: 'fixed', top: 80, right: 24,
+          background: 'var(--accent-red-dark)',
+          border: '1px solid var(--accent-red)',
+          borderRadius: 10, padding: '12px 18px',
+          color: 'var(--text-primary)', fontSize: 13,
+          zIndex: 200, maxWidth: 320,
+          boxShadow: 'var(--glass-shadow)',
+        }}>
+          <strong>BLE Error:</strong> {bleError}
+        </div>
+      )}
 
-          {latestPosture && (
-            <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <span>Detection Confidence</span>
-                  <strong style={{ color: confidenceColor }}>{confidencePct}%</strong>
+      <div style={{ marginTop: '24px' }}>
+        {/* Main Grid */}
+        <div className="dashboard-grid">
+
+          {/* Left Column */}
+          <div className="col-8" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            <CameraView
+              isTracking={isTracking}
+              score={latestPosture?.postureScore ?? null}
+              onLandmarks={handleLandmarks}
+            />
+
+            <LateralLeanAlert posture={latestPosture} />
+
+            {latestPosture && (
+              <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <span>Detection Confidence</span>
+                    <strong style={{ color: confidenceColor }}>{confidencePct}%</strong>
+                  </div>
+                  <div style={{ height: '8px', borderRadius: '4px', background: 'var(--bg-dark)', overflow: 'hidden' }}>
+                    <div style={{ width: `${confidencePct}%`, height: '100%', background: confidenceColor, transition: 'width 0.2s ease' }} />
+                  </div>
+                  {latestPosture.confidence < 0.4 && (
+                    <span style={{ color: 'var(--accent-red)', fontSize: '12px' }}>
+                      Low detection confidence - move camera closer or improve lighting.
+                    </span>
+                  )}
                 </div>
-                <div style={{ height: '8px', borderRadius: '4px', background: 'var(--bg-dark)', overflow: 'hidden' }}>
-                  <div style={{ width: `${confidencePct}%`, height: '100%', background: confidenceColor, transition: 'width 0.2s ease' }} />
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span>Spine Velocity</span>
+                  <strong style={{ color: velocityColor, fontSize: '18px' }}>
+                    {spineVelocity >= 0 ? '+' : ''}{spineVelocity.toFixed(1)} deg/s
+                  </strong>
                 </div>
-                {latestPosture.confidence < 0.4 && (
-                  <span style={{ color: 'var(--accent-red)', fontSize: '12px' }}>
-                    Low detection confidence - move camera closer or improve lighting.
-                  </span>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                <span>Spine Velocity</span>
-                <strong style={{ color: velocityColor, fontSize: '18px' }}>
-                  {spineVelocity >= 0 ? '+' : ''}{spineVelocity.toFixed(1)} deg/s
-                </strong>
-              </div>
-            </div>
-          )}
-
-          {/* Calibration & Session Clock Controls */}
-          <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setCalibrating(true)} className="btn btn-secondary" disabled={!isTracking}>
-                Calibrate Baseline
-              </button>
-              
-              <button 
-                onClick={sessionStartTime ? endSession : startSession} 
-                className={`btn ${sessionStartTime ? 'btn-secondary' : 'btn-primary'}`}
-                disabled={!isTracking}
-              >
-                {sessionStartTime ? "End Monitoring" : "Start Session"}
-              </button>
-            </div>
-
-            {sessionStartTime && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={16} className="pulsing-glow" style={{ color: 'var(--accent-cyan)' }} />
-                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Session Clock Active</span>
               </div>
             )}
-          </div>
 
-          <AnalyticsDashboard 
-            sessionScoreHistory={sessionScoreHistory} 
-            pastSessions={pastSessions} 
-          />
+            {/* Calibration & Session Clock Controls */}
+            <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => setCalibrating(true)} className="btn btn-secondary" disabled={!isTracking}>
+                  Calibrate Baseline
+                </button>
 
-        </div>
+                <button
+                  onClick={sessionStartTime ? endSession : startSession}
+                  className={`btn ${sessionStartTime ? 'btn-secondary' : 'btn-primary'}`}
+                  disabled={!isTracking}
+                >
+                  {sessionStartTime ? 'End Monitoring' : 'Start Session'}
+                </button>
+              </div>
 
-        {/* Right Column */}
-        <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          <SpineVisualizer 
-            targetPositions={targetPositions} 
-            currentPositions={bleConnected && bleStatus ? bleStatus.currentPositions : targetPositions}
-            isHomed={bleStatus?.isHomed ?? false}
-            isMoving={bleStatus?.isMoving ?? false}
-          />
-
-          <ModeSelector 
-            currentMode={mode} 
-            onChange={(m) => setMode(m)} 
-          />
-
-          {/* Settings: Operational Mode (CV only vs Both) */}
-          <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
-              <Cpu size={18} style={{ color: 'var(--accent-cyan)' }} />
-              Integration Settings
-            </h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <button 
-                onClick={() => setTrackingMode('cv')}
-                className="btn"
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: '12px',
-                  background: trackingMode === 'cv' ? 'var(--accent-blue-dark)' : 'var(--bg-dark)',
-                  border: trackingMode === 'cv' ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--color-border)',
-                  color: 'var(--text-primary)',
-                  boxShadow: trackingMode === 'cv' ? 'var(--btn-shadow-pressed)' : 'var(--btn-shadow)',
-                  fontSize: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}
-              >
-                <Eye size={14} />
-                <span>Local CV Only</span>
-              </button>
-
-              <button 
-                onClick={() => setTrackingMode('both')}
-                className="btn"
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: '12px',
-                  background: trackingMode === 'both' ? 'var(--accent-blue-dark)' : 'var(--bg-dark)',
-                  border: trackingMode === 'both' ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--color-border)',
-                  color: 'var(--text-primary)',
-                  boxShadow: trackingMode === 'both' ? 'var(--btn-shadow-pressed)' : 'var(--btn-shadow)',
-                  fontSize: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}
-              >
-                <Cpu size={14} />
-                <span>Active BLE Loop</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Manual controls override when tracking is off */}
-          {!isTracking && (
-            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
-                <Sliders size={18} style={{ color: 'var(--accent-cyan)' }} />
-                Manual Position Command
-              </h3>
-              {[0, 1, 2, 3, 4, 5].map((idx) => (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Module {idx + 1} position: {targetPositions[idx] || 0}mm</span>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="100" 
-                    value={targetPositions[idx] || 0}
-                    onChange={(e) => handleManualPositionChange(idx, parseInt(e.target.value))}
-                    className="custom-range" 
-                  />
+              {sessionStartTime && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={16} className="pulsing-glow" style={{ color: 'var(--accent-cyan)' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                    Session Active
+                  </span>
+                  <span style={{ fontSize: '14px', fontFamily: 'var(--font-display)', color: 'var(--accent-cyan)', letterSpacing: '0.05em' }}>
+                    {sessionElapsed}
+                  </span>
                 </div>
-              ))}
+              )}
             </div>
-          )}
+
+            <AnalyticsDashboard
+              sessionScoreHistory={sessionScoreHistory}
+              pastSessions={pastSessions}
+            />
+
+          </div>
+
+          {/* Right Column */}
+          <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            <SpineVisualizer
+              targetPositions={targetPositions}
+              currentPositions={bleConnected && bleStatus ? bleStatus.currentPositions : targetPositions}
+              isHomed={bleStatus?.isHomed ?? false}
+              isMoving={bleStatus?.isMoving ?? false}
+            />
+
+            <ModeSelector
+              currentMode={mode}
+              onChange={(m) => setMode(m)}
+            />
+
+            {/* Settings: Operational Mode (CV only vs Both) */}
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+                <Cpu size={18} style={{ color: 'var(--accent-cyan)' }} />
+                Integration Settings
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  onClick={() => setTrackingMode('cv')}
+                  className="btn"
+                  style={{
+                    padding: '12px 10px',
+                    borderRadius: '12px',
+                    background: trackingMode === 'cv' ? 'var(--accent-blue-dark)' : 'var(--bg-dark)',
+                    border: trackingMode === 'cv' ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--color-border)',
+                    color: 'var(--text-primary)',
+                    boxShadow: trackingMode === 'cv' ? 'var(--btn-shadow-pressed)' : 'var(--btn-shadow)',
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}
+                >
+                  <Eye size={14} />
+                  <span>Local CV Only</span>
+                </button>
+
+                <button
+                  onClick={() => setTrackingMode('both')}
+                  className="btn"
+                  style={{
+                    padding: '12px 10px',
+                    borderRadius: '12px',
+                    background: trackingMode === 'both' ? 'var(--accent-blue-dark)' : 'var(--bg-dark)',
+                    border: trackingMode === 'both' ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--color-border)',
+                    color: 'var(--text-primary)',
+                    boxShadow: trackingMode === 'both' ? 'var(--btn-shadow-pressed)' : 'var(--btn-shadow)',
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}
+                >
+                  <Cpu size={14} />
+                  <span>Active BLE Loop</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Manual controls override when tracking is off */}
+            {!isTracking && (
+              <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+                  <Sliders size={18} style={{ color: 'var(--accent-cyan)' }} />
+                  Manual Position Command
+                </h3>
+                {[0, 1, 2, 3, 4, 5].map((idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      Module {idx + 1}: {targetPositions[idx] || 0} / 55mm
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="55"
+                      value={targetPositions[idx] || 0}
+                      onChange={(e) => handleManualPositionChange(idx, parseInt(e.target.value))}
+                      className="custom-range"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
 
         </div>
-
       </div>
 
-      <BLEStatusBar 
-        bleConnected={bleConnected} 
-        bleStatus={bleStatus} 
-        lastPacketTime={lastPacketTime} 
+      <BLEStatusBar
+        bleConnected={bleConnected}
+        bleStatus={bleStatus}
+        lastPacketTime={lastPacketTime}
       />
 
-      <CalibrationModal 
-        isOpen={calibrating} 
-        onClose={() => setCalibrating(false)} 
-        currentPosture={latestPosture} 
-        currentLandmarks={currentLandmarks} 
-        onCalibrated={handleCalibrated} 
+      <CalibrationModal
+        isOpen={calibrating}
+        onClose={() => setCalibrating(false)}
+        currentPosture={latestPosture}
+        currentLandmarks={currentLandmarks}
+        onCalibrated={handleCalibrated}
       />
 
     </div>

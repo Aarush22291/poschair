@@ -9,11 +9,11 @@
   --bg-card:       #121215;
   --bg-card-hover: #18181c;
   
-  --color-border:      rgba(255, 255, 255, 0.01);
-  --color-border-glow: rgba(255, 255, 255, 0.03);
+  --color-border:      rgba(255, 255, 255, 0.07);
+  --color-border-glow: rgba(255, 255, 255, 0.12);
   
   --accent-cyan:   #3b82f6; /* Accent Blue (General) */
-  --accent-violet: #ef4444; /* Accent Red (Warning) */
+  --accent-violet: #8b5cf6; /* Accent Violet (mid-range actuator) */
   --accent-green:  #10b981; /* Success Green (BLE connected / Charge) */
   --accent-orange: #f59e0b; /* Alert Orange */
   --accent-red:    #ef4444; /* Danger Red */

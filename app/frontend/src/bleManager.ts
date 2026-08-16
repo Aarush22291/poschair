@@ -2,6 +2,9 @@ const SERVICE_UUID = 'a1b2c3d4-0001-4b5c-8d6e-1f2a3b4c5d6e';
 const COMMAND_CHAR_UUID = 'a1b2c3d4-0002-4b5c-8d6e-1f2a3b4c5d6e';
 const STATUS_CHAR_UUID = 'a1b2c3d4-0003-4b5c-8d6e-1f2a3b4c5d6e';
 
+// Must match MAX_POSITION_MM in firmware/config.h
+const MAX_POSITION_MM = 55;
+
 export interface StatusData {
   flags: number;
   currentPositions: number[];
@@ -25,7 +28,7 @@ function buildCommandPacket(positions: number[]): ArrayBuffer {
   buf[0] = 0xA5;
 
   for (let i = 0; i < 6; i++) {
-    buf[i + 1] = Math.min(100, Math.max(0, Math.round(positions[i] ?? 0)));
+    buf[i + 1] = Math.min(MAX_POSITION_MM, Math.max(0, Math.round(positions[i] ?? 0)));
   }
 
   let checksum = 0;

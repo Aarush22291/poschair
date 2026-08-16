@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine
@@ -7,9 +8,16 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="PosChair API", version="1.0.0")
 
+# CORS_ORIGINS env var lets docker-compose / production override without code changes.
+# "null" allows Electron (file:// origin) and direct-open HTML files.
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,null"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

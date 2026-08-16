@@ -29,6 +29,22 @@ let prevTimestamp = 0;
 let prevSpine = 0;
 let prevLateral = 0;
 
+/** Call at session start and after calibration to clear stale velocity state. */
+export function resetPostureVelocityState(): void {
+  prevTimestamp = 0;
+  prevSpine = 0;
+  prevLateral = 0;
+}
+
+const REQUIRED_LANDMARKS = [NOSE, L_SHOULDER, R_SHOULDER, L_HIP, R_HIP];
+const MIN_VISIBILITY = 0.5;
+
+function hasLandmarks(lm: LandmarkList): boolean {
+  return REQUIRED_LANDMARKS.every(
+    (idx) => lm[idx] != null && (lm[idx].visibility ?? 1) >= MIN_VISIBILITY
+  );
+}
+
 function dist2D(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
@@ -39,7 +55,10 @@ function landmarkConfidence(lm: LandmarkList) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-export function analyzePose(lm: LandmarkList, baseline: CalibrationBaseline | null): PostureData {
+export function analyzePose(lm: LandmarkList, baseline: CalibrationBaseline | null): PostureData | null {
+  // Guard: skip frames where required landmarks are missing or low-confidence
+  if (!hasLandmarks(lm)) return null;
+
   const midShoulder = {
     x: (lm[L_SHOULDER].x + lm[R_SHOULDER].x) / 2,
     y: (lm[L_SHOULDER].y + lm[R_SHOULDER].y) / 2,

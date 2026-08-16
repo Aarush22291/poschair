@@ -28,9 +28,11 @@ const uint8_t LPWM_PINS[NUM_MODULES] = {26, 16, 13, 18, 22, 19};
 #define MOTOR_PWM_FREQ 5000
 #define MOTOR_PWM_RES 8
 
-// Timed position model: position unit 0-100 maps to 0-100mm extension.
+// Timed position model: position unit 0-55 maps to 0-55mm extension.
+// 55mm is the v2 hardware safe limit: pre-curved strips bow 20mm at rest,
+// servo adds up to 30mm more. Going beyond 55mm risks over-compressing the strip.
 #define MOTOR_SPEED_MM_PER_MS 0.075f
-#define MAX_POSITION_MM 100
+#define MAX_POSITION_MM 55
 #define POSITION_UNIT_TO_MM 1.0f
 
 // Homing and safety.

@@ -38,11 +38,13 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
     }
   }, [isOpen]);
 
-  // Frame sampling during calibration
+  // Frame sampling during calibration — only accept high-confidence frames
   useEffect(() => {
     if (step === 'natural' && currentPosture && currentLandmarks) {
-      postureFrames.current.push(currentPosture);
-      landmarkFrames.current.push(currentLandmarks);
+      if (currentPosture.confidence >= 0.65) {
+        postureFrames.current.push(currentPosture);
+        landmarkFrames.current.push(currentLandmarks);
+      }
     }
   }, [step, currentPosture, currentLandmarks]);
 
@@ -70,6 +72,13 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
   };
 
   const completeCalibration = () => {
+    const minFrames = 10;
+    if (postureFrames.current.length < minFrames) {
+      alert(`Too few high-confidence frames captured (${postureFrames.current.length}/${minFrames}). Ensure your full upper body is visible and try again.`);
+      setStep('idle');
+      return;
+    }
+
     if (postureFrames.current.length > 0 && landmarkFrames.current.length > 0) {
       // Calculate calibration averages
       const avgSpine = postureFrames.current.reduce((s, f) => s + f.spineAngleDeg, 0) / postureFrames.current.length;

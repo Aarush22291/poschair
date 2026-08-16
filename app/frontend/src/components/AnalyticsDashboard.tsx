@@ -31,6 +31,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     score: Math.round(val.sum / val.count)
   })).reverse();
 
+  // Fallback placeholder data for cold demos — shown only when no real sessions exist
+  const DEMO_BAR_DATA = [
+    { day: 'Mon', score: 74 }, { day: 'Tue', score: 81 },
+    { day: 'Wed', score: 68 }, { day: 'Thu', score: 87 },
+    { day: 'Fri', score: 79 },
+  ];
+  const isUsingDemoData = barChartData.length === 0;
+  const displayBarData = isUsingDemoData ? DEMO_BAR_DATA : barChartData;
+
   return (
     <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
@@ -65,18 +74,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <div>
           <h4 style={{ marginBottom: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>Daily Aggregates</h4>
           <div style={{ width: '100%', height: '150px' }}>
-            {barChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData}>
-                  <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
-                  <YAxis domain={[0, 100]} stroke="var(--text-muted)" fontSize={10} tickLine={false} />
-                  <Bar dataKey="score" fill="var(--accent-violet)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                No historical logs available yet.
-              </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={displayBarData}>
+                <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                <Bar dataKey="score" fill="var(--accent-violet)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            {isUsingDemoData && (
+              <p style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', marginTop: 4 }}>
+                (demo data — start a session to record real scores)
+              </p>
             )}
           </div>
         </div>
