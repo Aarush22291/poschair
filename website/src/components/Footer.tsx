@@ -19,7 +19,7 @@ export default function Footer() {
         fontSize:        13,
         color:          'var(--text-muted)',
       }}>
-        <span>PosChair © {new Date().getFullYear()} · MIT License</span>
+        <span>PosChair Technologies © {new Date().getFullYear()} · All Rights Reserved · Patent Pending</span>
         <div style={{ display: 'flex', gap: 24 }}>
           <Link href="/terms"   style={{ color: 'var(--text-muted)' }}>Terms of Service</Link>
           <Link href="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</Link>

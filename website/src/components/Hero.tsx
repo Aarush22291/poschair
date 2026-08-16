@@ -35,7 +35,7 @@ export default function Hero() {
             background: 'var(--accent-blue)',
             boxShadow: '0 0 10px var(--accent-blue)',
           }} />
-          Open Source AI Ergonomics · MIT License
+          Patent Pending · PosChair Technologies Inc.
         </div>
 
         <h1 style={{

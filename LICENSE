@@ -1,0 +1,33 @@
+PROPRIETARY AND PATENT-PENDING SOFTWARE LICENSE
+
+Copyright (c) 2026 PosChair Technologies. All Rights Reserved.
+
+NOTICE OF INTELLECTUAL PROPERTY & PATENT RESERVATION:
+
+This repository, software, firmware, 2×3 paraspinal actuator kinematic algorithms, 
+hardware schematics, and documentation ("PosChair IP") embody proprietary 
+technical innovations subject to pending patent applications.
+
+1. EXPRESS RESERVATION OF PATENT & COMMERCIAL RIGHTS:
+   All patent rights, copyrights, trademarks, design rights, trade secrets, 
+   and commercial exploitation rights in and to PosChair are strictly reserved 
+   by PosChair Technologies.
+
+2. COMMERCIAL RESTRICTIONS:
+   Without prior explicit written authorization from PosChair Technologies, 
+   the following are strictly prohibited:
+   (a) Manufacturing, marketing, selling, licensing, or commercially distributing 
+       any smart chair, lumbar actuator device, or posture correction system 
+       embodying the paraspinal matrix kinematics or BLE control algorithms herein.
+   (b) Modifying, adapting, or creating derivative commercial products based on 
+       this codebase or hardware architecture.
+   (c) Reverse engineering or incorporating these biomechanical decision algorithms 
+       into commercial applications.
+
+3. PERMITTED USES:
+   Permission is granted strictly for personal, non-commercial evaluation and 
+   academic research, provided that this patent reservation and copyright notice 
+   remain unaltered in all copies.
+
+For commercial licensing, enterprise inquiries, or patent correspondence:
+PosChair Technologies — Patent Pending

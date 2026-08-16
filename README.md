@@ -3,7 +3,8 @@
 AI-assisted posture correction hardware for chairs, built around a browser vision loop, BLE control, and a 2x3 paraspinal actuator grid.
 
 [![Latest Release](https://img.shields.io/github/v/release/brovk2008/Poschair_final?label=download&color=5c8aff)](https://github.com/brovk2008/Poschair_final/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-gray)](LICENSE)
+[![Patent Pending](https://img.shields.io/badge/patent-pending-blue)](LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Website](https://img.shields.io/badge/website-poschair--comfort.vercel.app-gray)](https://poschair-comfort.vercel.app)
 
 PosChair tracks posture locally with MediaPipe Pose, converts posture deviation into six linear actuator targets, and sends those commands to an ESP32 DevKit V1 over Bluetooth Low Energy. The v3 hardware uses DC geared motors, BTS7960 H-bridge drivers, and custom worm-rack actuators that move foam pads up to 100mm.
@@ -191,6 +192,8 @@ This project controls physical hardware. Use conservative travel limits, soft fo
 
 The firmware clamps commanded travel to 100mm and retracts on BLE timeout, but mechanical end stops and careful power design are still required.
 
-## Status
+## License & Patent Notice
 
-V3 implementation is active on ESP32 DevKit V1. The app and website builds pass locally. Firmware should be compiled and flashed through Arduino IDE after installing NimBLE-Arduino and selecting the ESP32 board package.
+Copyright (c) 2026 PosChair Technologies. All Rights Reserved. **Patent Pending.**
+
+This software, hardware designs, and 2×3 paraspinal actuator algorithms are subject to pending patent applications. Commercial manufacturing, distribution, or licensing without express written authorization is strictly prohibited. See [LICENSE](LICENSE) for details.

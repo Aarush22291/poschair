@@ -66,7 +66,7 @@ export default function Home() {
         {/* Download Section */}
         <section style={{ textAlign: 'center', padding: '100px 0 120px', borderTop: '1px solid var(--border)' }}>
           <div className="section-tag" style={{ marginBottom: 20 }}>
-            Open Source Release
+            Patent Pending · Official Release
           </div>
           <h2 style={{ fontSize: '36px', marginBottom: '16px', fontWeight: 800, letterSpacing: '-0.02em' }}>
             Ready to correct your posture?
