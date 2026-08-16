@@ -1,90 +1,65 @@
+import React from 'react';
+
 const steps = [
   {
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M23 7l-7 5 7 5V7z"/>
-        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-      </svg>
-    ),
     step: '01',
-    title: 'Camera detects posture',
-    desc: 'MediaPipe Pose runs as WebAssembly in the browser. No data leaves your device.',
+    title: 'Client-Side WASM Vision',
+    desc: 'MediaPipe Pose Landmarker extracts 33 3D joints from webcam frames in WebAssembly. No image data is ever stored or transmitted.',
+    code: 'PoseLandmarker.createFromOptions(vision, { delegate: "GPU" })',
   },
   {
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="4" y="4" width="16" height="16" rx="2"/>
-        <rect x="9" y="9" width="6" height="6"/>
-        <line x1="9" y1="1" x2="9" y2="4"/>
-        <line x1="15" y1="1" x2="15" y2="4"/>
-        <line x1="9" y1="20" x2="9" y2="23"/>
-        <line x1="15" y1="20" x2="15" y2="23"/>
-        <line x1="20" y1="9" x2="23" y2="9"/>
-        <line x1="20" y1="14" x2="23" y2="14"/>
-        <line x1="1" y1="9" x2="4" y2="9"/>
-        <line x1="1" y1="14" x2="4" y2="14"/>
-      </svg>
-    ),
     step: '02',
-    title: 'Decision engine maps positions',
-    desc: 'Forward velocity and lateral deviation are mapped to six 0-100mm worm-rack targets.',
+    title: 'Kinematic & EMA Analysis',
+    desc: 'Calculates spine angle, lateral roll, and neck inclination against your baseline pose, stabilized with an exponential moving average (α=0.35).',
+    code: 'angleFromVertical(midHip, midShoulder) - baseline.spineAngle0',
   },
   {
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
-      </svg>
-    ),
     step: '03',
-    title: 'BLE sends commands',
-    desc: 'An 8-byte command packet with XOR checksum is sent over Bluetooth Low Energy to the chair hardware.',
+    title: 'Paraspinal Matrix Mapping',
+    desc: 'The decision engine scales deviation across 6 independent actuators (UL, UR, ML, MR, LL, LR) capped at the 55mm hardware safe travel limit.',
+    code: 'computeTargetPositions(posture, mode) // 0–55mm output',
   },
   {
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    ),
     step: '04',
-    title: 'Motors correct your posture',
-    desc: 'BTS7960 drivers move worm-rack actuators independently so the opposite column can re-centre lateral lean.',
+    title: 'BLE & H-Bridge Actuation',
+    desc: 'Transmits 8-byte command packets to the ESP32. BTS7960 H-bridges drive DC geared motors to wind pre-curved spring steel strips into your spine.',
+    code: '0xA5 [UL] [UR] [ML] [MR] [LL] [LR] [XOR_CHECKSUM]',
   },
-]
+];
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" style={{ padding: '100px 0 80px' }}>
-      <h2 className="section-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--text-secondary)' }}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        How it works
+    <section id="how-it-works" style={{ padding: '80px 0' }}>
+      <div style={{ textTransform: 'uppercase', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent-blue)', marginBottom: 12 }}>
+        Closed-Loop System
+      </div>
+      <h2 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 48, letterSpacing: '-0.02em' }}>
+        How the Vision-to-Motion Pipeline Works
       </h2>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
-        {steps.map(s => (
-          <div key={s.step} className="clay-card">
-            <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 800, marginBottom: '20px', letterSpacing: '0.04em', fontFamily: 'monospace' }}>
+        {steps.map((s) => (
+          <div key={s.step} className="tech-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="code-font" style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent-blue)', letterSpacing: '0.04em' }}>
               STEP {s.step}
             </div>
-            <div style={{
-              background: 'var(--surface-2)',
-              boxShadow: 'var(--shadow-btn)',
-              width: '48px',
-              height: '48px',
-              borderRadius: 'var(--radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-primary)',
-              marginBottom: '24px',
-              border: '1px solid rgba(255,255,255,0.01)'
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{s.title}</h3>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s.desc}</p>
+            <div className="code-font" style={{
+              marginTop: 'auto',
+              fontSize: 10,
+              padding: '8px 10px',
+              borderRadius: 6,
+              background: 'var(--surface-base)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+              wordBreak: 'break-all',
             }}>
-              {s.icon}
+              {s.code}
             </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '10px', color: 'var(--text-primary)' }}>{s.title}</h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s.desc}</p>
           </div>
         ))}
       </div>
     </section>
-  )
+  );
 }

@@ -1,58 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* STEALTH DARK NEUMORPHIC-CLAYMORPHIC THEME */
-  --bg:           #0a0a0c;
-  --surface:      #121215;
-  --surface-2:    #18181c;
-  --border:       rgba(255, 255, 255, 0.01);
-  --border-hover: rgba(255, 255, 255, 0.03);
-  --text-primary: #f4f4f5;
-  --text-secondary: #9ea2af;
-  --text-muted:   #4e515f;
-  --text-dim:     #353742;
-  
-  /* Refined Matte Accents (No neon) */
-  --accent-blue:  #182a4d; /* Deep slate-blue */
-  --accent-red:   #4c1218;  /* Deep crimson-burgundy */
-  --accent-gray:  #24242b;  /* Matte graphite */
-  
-  --radius-base:  32px;
-  --radius-default: 999px;
-  --radius-sm:    14px;
-  
-  /* Hybrid Neumorphic-Claymorphic Shadow Mappings */
-  --shadow-card: 
-    12px 12px 24px rgba(0, 0, 0, 0.7), 
-    -12px -12px 24px rgba(255, 255, 255, 0.015),
-    inset 3px 3px 6px rgba(255, 255, 255, 0.03), 
-    inset -5px -5px 10px rgba(0, 0, 0, 0.85);
+  /* ── Anti-Slop Engineering Color Palette ────────────────────── */
+  --bg:             #08090d;
+  --surface-base:   #0f1117;
+  --surface-card:   #141722;
+  --surface-hover:  #1c202e;
 
-  --shadow-card-hover: 
-    16px 16px 32px rgba(0, 0, 0, 0.8), 
-    -16px -16px 32px rgba(255, 255, 255, 0.02),
-    inset 4px 4px 8px rgba(255, 255, 255, 0.04), 
-    inset -7px -7px 14px rgba(0, 0, 0, 0.9);
+  --border:         rgba(255, 255, 255, 0.08);
+  --border-bright:  rgba(255, 255, 255, 0.16);
+  --border-accent:  rgba(56, 189, 248, 0.3);
 
-  --shadow-btn:
-    6px 6px 12px rgba(0, 0, 0, 0.7), 
-    -6px -6px 12px rgba(255, 255, 255, 0.012),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.04), 
-    inset -4px -4px 8px rgba(0, 0, 0, 0.85);
+  --text-primary:   #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+  --text-dim:       #475569;
 
-  --shadow-btn-hover:
-    8px 8px 16px rgba(0, 0, 0, 0.8), 
-    -8px -8px 16px rgba(255, 255, 255, 0.02),
-    inset 3px 3px 6px rgba(255, 255, 255, 0.05), 
-    inset -5px -5px 10px rgba(0, 0, 0, 0.9);
+  /* Accent Mappings — Refined Tech Color Scale */
+  --accent-blue:    #38bdf8; /* Sky Cyan */
+  --accent-indigo:  #6366f1; /* Deep Indigo */
+  --accent-green:   #22c55e; /* Emerald Success */
+  --accent-amber:   #f59e0b; /* Amber Caution */
+  --accent-red:     #ef4444; /* Rose Danger */
 
-  --shadow-btn-pressed:
-    inset 4px 4px 8px rgba(0, 0, 0, 0.95),
-    inset -4px -4px 8px rgba(255, 255, 255, 0.01);
-    
-  --shadow-inset-groove:
-    inset 3px 3px 6px rgba(0, 0, 0, 0.8),
-    1px 1px 2px rgba(255, 255, 255, 0.02);
+  --radius-lg:      20px;
+  --radius-md:      12px;
+  --radius-sm:      8px;
+  --radius-full:    9999px;
+
+  /* Shadows */
+  --shadow-card:    0 12px 32px -8px rgba(0, 0, 0, 0.6);
+  --shadow-glow:    0 0 30px -5px rgba(56, 189, 248, 0.15);
 }
 
 * {
@@ -63,10 +41,10 @@
 
 html {
   background: var(--bg);
-  color:      var(--text-primary);
-  font-family: 'Poppins', 'Outfit', system-ui, -apple-system, sans-serif;
-  font-size:   16px;
-  line-height: 1.5;
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
 }
@@ -78,84 +56,133 @@ body {
   overflow-x: hidden;
 }
 
-/* Background grid layout overlay */
+/* Subtle background tech grid & ambient glow */
 body::before {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 80% 20%, rgba(24, 42, 77, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(76, 18, 24, 0.08) 0%, transparent 50%);
+  height: 1200px;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% -10%, rgba(99, 102, 241, 0.18) 0%, transparent 80%),
+    radial-gradient(ellipse 40% 30% at 85% 20%, rgba(56, 189, 248, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 15% 40%, rgba(239, 68, 68, 0.08) 0%, transparent 70%);
   z-index: -1;
   pointer-events: none;
 }
 
+/* Grid lines pattern overlay */
+body::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1200px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: -1;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 40%, transparent 100%);
+}
+
 a {
-  color: var(--text-secondary);
+  color: inherit;
   text-decoration: none;
   transition: all 0.2s ease;
 }
 
-a:hover {
-  color: var(--text-primary);
-}
-
-/* Tactile panels (claymorphism + neumorphism hybrid) */
-.clay-card {
-  background: var(--surface);
+/* Crisp technical cards */
+.tech-card {
+  background: var(--surface-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-lg);
+  padding: 32px;
   box-shadow: var(--shadow-card);
-  padding: 36px;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-.clay-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-hover);
+.tech-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-bright);
+  box-shadow: var(--shadow-card), var(--shadow-glow);
 }
 
-/* Matte stealth buttons */
-.clay-btn {
+/* Crisp primary button */
+.tech-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Poppins', inherit;
+  gap: 10px;
+  font-family: inherit;
   font-weight: 600;
-  border: 1px solid var(--border);
+  font-size: 15px;
+  padding: 14px 28px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
-  box-shadow: var(--shadow-btn);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(2, 132, 199, 0.35);
+  transition: all 0.2s ease;
   user-select: none;
-  background: var(--surface-2);
+}
+
+.tech-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(2, 132, 199, 0.5);
+  filter: brightness(1.08);
+}
+
+.tech-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary outline button */
+.tech-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 28px;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
   color: var(--text-primary);
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
 }
 
-.clay-btn:hover {
-  transform: scale(1.02);
-  box-shadow: var(--shadow-btn-hover);
-  background: #1f1f26;
-  border-color: var(--border-hover);
+.tech-btn-secondary:hover {
+  background: var(--surface-hover);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
-.clay-btn:active {
-  transform: scale(0.98);
-  box-shadow: var(--shadow-btn-pressed);
-  background: #15151a;
-}
-
-.section-title {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 48px;
-  display: flex;
+.section-tag {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: var(--accent-blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.code-font {
+  font-family: 'JetBrains Mono', monospace;
 }
