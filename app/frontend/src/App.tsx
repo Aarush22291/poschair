@@ -323,6 +323,7 @@ export default function App() {
               score={latestPosture?.postureScore ?? null}
               onLandmarks={handleLandmarks}
               latestPosture={latestPosture}
+              targetPositions={targetPositions}
             />
 
             <LateralLeanAlert posture={latestPosture} />

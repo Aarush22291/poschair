@@ -8,6 +8,7 @@ interface CameraViewProps {
   score: number | null;
   onLandmarks: (landmarks: LandmarkList) => void;
   latestPosture?: PostureData | null;
+  targetPositions?: number[];
 }
 
 const overlayCenter: React.CSSProperties = {
@@ -36,6 +37,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   score,
   onLandmarks,
   latestPosture,
+  targetPositions = [0, 0, 0, 0, 0, 0],
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -166,7 +168,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
               fillColor: colors.dot,
               lineWidth: 1,
               radius: (data) => {
-                // Make key postural joints larger
                 const idx = data?.index ?? 0;
                 const KEY = [0, 7, 8, 11, 12, 23, 24]; // nose, ears, shoulders, hips
                 return KEY.includes(idx) ? 8 : 5;
@@ -202,7 +203,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
             ctx.stroke();
 
             // ── Posture angle arc indicator ──────────────────
-            // Small arc at midShoulder showing spine deviation
             if (latestPosture?.spineDeviation != null && Math.abs(latestPosture.spineDeviation) > 3) {
               const cx = midShoulder.x * W;
               const cy = midShoulder.y * H;
@@ -331,17 +331,18 @@ export const CameraView: React.FC<CameraViewProps> = ({
               </div>
             )}
 
-            {/* Score badge — top right */}
+            {/* Score badge — top left */}
             {detectorState === 'ready' && (
               <div style={{
-                position: 'absolute', top: 14, right: 14,
-                background: 'rgba(7, 13, 28, 0.8)',
+                position: 'absolute', top: 14, left: 14,
+                background: 'rgba(7, 13, 28, 0.82)',
                 backdropFilter: 'blur(10px)',
                 padding: '10px 18px', borderRadius: '14px',
                 border: `1px solid ${scoreColor}40`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minWidth: 72,
                 boxShadow: `0 0 20px ${scoreColor}22`,
+                zIndex: 12,
               }}>
                 <span style={{ fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   Score
@@ -362,6 +363,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
               </div>
             )}
 
+            {/* ── TOP RIGHT: Chair Hardware Simulation Widget ──────── */}
+            {detectorState === 'ready' && (
+              <ChairHardwareWidget positions={targetPositions} />
+            )}
+
             {/* Live metrics bar — bottom overlay */}
             {detectorState === 'ready' && latestPosture && (
               <div style={{
@@ -372,6 +378,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 padding: '8px 14px',
                 display: 'flex', gap: 20, alignItems: 'center',
                 fontSize: 11,
+                zIndex: 12,
               }}>
                 <MetricPill
                   label="Spine"
@@ -420,6 +427,103 @@ export const CameraView: React.FC<CameraViewProps> = ({
     </div>
   );
 };
+
+// ── Chair Hardware Live Simulation Widget (Top-Right Overlay) ─────
+function ChairHardwareWidget({ positions }: { positions: number[] }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 14,
+      right: 14,
+      background: 'rgba(7, 13, 28, 0.85)',
+      backdropFilter: 'blur(12px)',
+      border: '1px solid rgba(255, 255, 255, 0.12)',
+      borderRadius: '16px',
+      padding: '10px 12px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+      zIndex: 15,
+    }}>
+      <div style={{
+        fontSize: '9px',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        color: 'var(--accent-cyan)',
+        textTransform: 'uppercase',
+      }}>
+        Hardware Motor State
+      </div>
+
+      {/* Blue Oval Chair Backrest Diagram */}
+      <div style={{
+        width: '90px',
+        height: '110px',
+        background: '#0099ff', // Vibrant blue backrest from reference drawing
+        borderRadius: '45px / 55px', // Oval shape
+        border: '2px solid #000', // Solid black outline
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '10px 12px',
+        gap: '6px',
+        position: 'relative',
+        boxShadow: 'inset 0 0 12px rgba(0, 0, 0, 0.4)',
+      }}>
+        {/* 2x3 Grid of 6 Actuator Circles */}
+        {[0, 1, 2].map((rowIdx) => (
+          <div key={rowIdx} style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            {[0, 1].map((colIdx) => {
+              const moduleIdx = rowIdx * 2 + colIdx;
+              const pos = Math.round(positions[moduleIdx] ?? 0);
+              const isActive = pos > 3; // Actuator motor actively extending/rotating
+
+              return (
+                <div
+                  key={colIdx}
+                  title={`Module ${moduleIdx + 1}: ${pos}mm`}
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: isActive ? '#ef4444' : '#facc15', // Red when motor extends/rotates, Yellow when resting!
+                    border: '2px solid #000', // Solid black border like reference drawing
+                    boxShadow: isActive
+                      ? '0 0 12px #ef4444, inset 0 0 4px #990000'
+                      : 'inset 0 0 2px rgba(0,0,0,0.3)',
+                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '8px',
+                    fontWeight: 800,
+                    color: isActive ? '#ffffff' : '#000000',
+                    transform: isActive ? 'scale(1.15)' : 'scale(1.0)',
+                  }}
+                >
+                  {pos > 0 ? `${pos}` : ''}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        fontSize: '9px',
+        fontWeight: 800,
+        color: '#ffffff',
+        textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+        letterSpacing: '0.02em',
+      }}>
+        front side of chair
+      </div>
+    </div>
+  );
+}
 
 // ── Mini metric pill shown in the bottom bar ────────────────────
 function MetricPill({
