@@ -3,6 +3,7 @@ import Nav from '../components/Nav';
 import Hero from '../components/Hero';
 import HowItWorks from '../components/HowItWorks';
 import Features from '../components/Features';
+import InteractiveDocs from '../components/InteractiveDocs';
 import DownloadButton from '../components/DownloadButton';
 import Footer from '../components/Footer';
 
@@ -21,6 +22,7 @@ export default function Home() {
       <main style={{ maxWidth: 1140, margin: '0 auto', padding: '0 24px' }}>
         <Hero />
         <HowItWorks />
+        <InteractiveDocs />
         <Features />
 
         {/* Technical Specs Comparison Table */}

@@ -38,6 +38,7 @@ export default function Nav() {
         <div style={{ display: 'flex', gap: 28, fontSize: 14, alignItems: 'center' }}>
           <a href="#how-it-works" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Pipeline</a>
           <a href="#features"     style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Specs</a>
+          <Link href="/docs"      style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>Docs Guide</Link>
           <a
             href="https://github.com/brovk2008/Poschair_final"
             target="_blank"
