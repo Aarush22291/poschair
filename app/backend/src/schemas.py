@@ -18,6 +18,8 @@ class CalibrationCreate(BaseModel):
     spine_angle_0: float
     shoulder_width: float
     lateral_angle_0: float = 0.0
+    neck_angle_0: float = 15.0
+    torso_length: float = 0.3
 
 class CalibrationOut(CalibrationCreate):
     id: int

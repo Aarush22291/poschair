@@ -22,7 +22,9 @@ export async function saveCalibration(
   userId: number,
   spineAngle0: number,
   lateralAngle0: number,
-  shoulderWidth: number
+  neckAngle0: number,
+  shoulderWidth: number,
+  torsoLength: number
 ) {
   const r = await fetch(`${BASE}/calibration/`, {
     method: 'POST',
@@ -31,7 +33,9 @@ export async function saveCalibration(
       user_id: userId,
       spine_angle_0: spineAngle0,
       lateral_angle_0: lateralAngle0,
+      neck_angle_0: neckAngle0,
       shoulder_width: shoulderWidth,
+      torso_length: torsoLength,
     }),
   });
   if (!r.ok) throw new Error(`saveCalibration failed: ${r.status}`);

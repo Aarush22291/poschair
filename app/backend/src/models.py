@@ -21,6 +21,8 @@ class Calibration(Base):
     spine_angle_0   = Column(Float)   # "natural sit" baseline
     shoulder_width  = Column(Float)   # for normalizing forward-head offset
     lateral_angle_0 = Column(Float, default=0.0) # "natural sit" baseline lateral lean
+    neck_angle_0    = Column(Float, default=15.0)# "natural sit" baseline neck inclination
+    torso_length    = Column(Float, default=0.3) # "natural sit" torso length for scale invariance
     created_at      = Column(DateTime, default=datetime.utcnow)
     user            = relationship("User", back_populates="calibrations")
 

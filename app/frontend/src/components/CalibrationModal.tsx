@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, CheckCircle } from 'lucide-react';
-import { PostureData, CalibrationBaseline } from '../postureAnalyzer';
+import { PostureData, CalibrationBaseline, captureCalibrationBaseline } from '../postureAnalyzer';
 import { LandmarkList } from '../poseDetector';
 
 interface CalibrationModalProps {
@@ -80,18 +80,8 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
     }
 
     if (postureFrames.current.length > 0 && landmarkFrames.current.length > 0) {
-      // Calculate calibration averages
-      const avgSpine = postureFrames.current.reduce((s, f) => s + f.spineAngleDeg, 0) / postureFrames.current.length;
-      const avgLateral = postureFrames.current.reduce((s, f) => s + f.lateralLeanDeg, 0) / postureFrames.current.length;
-      
-      const dist = (a: any, b: any) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-      const avgShoulderWidth = landmarkFrames.current.reduce((s, lm) => s + dist(lm[11], lm[12]), 0) / landmarkFrames.current.length;
-
-      const baseline: CalibrationBaseline = {
-        spineAngle0: avgSpine,
-        lateralAngle0: avgLateral,
-        shoulderWidth: avgShoulderWidth
-      };
+      // Use the shared captureCalibrationBaseline — includes neck angle and torso length
+      const baseline = captureCalibrationBaseline(postureFrames.current, landmarkFrames.current);
 
       onCalibrated(baseline);
       setStep('done');

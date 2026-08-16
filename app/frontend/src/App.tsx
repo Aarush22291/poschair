@@ -94,9 +94,11 @@ export default function App() {
           const cal = await getCalibration(user.id).catch(() => null);
           if (cal) {
             setBaseline({
-              spineAngle0: cal.spine_angle_0,
+              spineAngle0:   cal.spine_angle_0,
               lateralAngle0: cal.lateral_angle_0 ?? 0.0,
+              neckAngle0:    cal.neck_angle_0    ?? 15.0,
               shoulderWidth: cal.shoulder_width,
+              torsoLength:   cal.torso_length    ?? 0.3,
             });
           }
           return; // success — exit retry loop
@@ -159,7 +161,14 @@ export default function App() {
     resetPostureVelocityState(); // clear stale velocity after recalibration
     if (userId) {
       try {
-        await saveCalToApi(userId, newBaseline.spineAngle0, newBaseline.lateralAngle0, newBaseline.shoulderWidth);
+        await saveCalToApi(
+          userId,
+          newBaseline.spineAngle0,
+          newBaseline.lateralAngle0,
+          newBaseline.neckAngle0,
+          newBaseline.shoulderWidth,
+          newBaseline.torsoLength
+        );
       } catch (err) {
         console.warn('Unable to save calibration to backend database.');
       }
@@ -313,6 +322,7 @@ export default function App() {
               isTracking={isTracking}
               score={latestPosture?.postureScore ?? null}
               onLandmarks={handleLandmarks}
+              latestPosture={latestPosture}
             />
 
             <LateralLeanAlert posture={latestPosture} />
