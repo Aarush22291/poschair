@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["F", "I"]
+per-file-ignores = { "src/**/*.py" = ["I001"] }

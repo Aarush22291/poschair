@@ -111,15 +111,15 @@ export default function DocsPage() {
               </h3>
               <div className="code-font" style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 10, color: 'var(--text-secondary)' }}>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>// All Retracted (Home)</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{'// All Retracted (Home)'}</span>
                   <div style={{ color: 'var(--accent-blue)', marginTop: 2 }}>A5 00 00 00 00 00 00 A5</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>// Mid Lumbar Correction (ML+MR 32mm)</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{'// Mid Lumbar Correction (ML+MR 32mm)'}</span>
                   <div style={{ color: 'var(--accent-blue)', marginTop: 2 }}>A5 00 00 20 20 00 00 85</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>// Right Column Full Extension</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{'// Right Column Full Extension'}</span>
                   <div style={{ color: 'var(--accent-blue)', marginTop: 2 }}>A5 00 37 00 37 00 37 A0</div>
                 </div>
               </div>
