@@ -64,7 +64,7 @@ export default function Hero() {
           marginBottom: '40px',
           maxWidth: '520px',
         }}>
-          PosChair tracks 33 3D body landmarks at 60 FPS in WebAssembly. When posture degrades, it commands a 6-zone motorized paraspinal backrest to actively push your spine back into alignment.
+          PosChair is an active correction system—not a reminder app. It tracks 33 3D landmarks at 60 FPS, converts biomechanical deviations into actuator targets, and applies guided paraspinal correction with safety-capped motor output.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -84,9 +84,9 @@ export default function Hero() {
           </div>
 
           <div style={{ display: 'flex', gap: 20, fontSize: '12px', color: 'var(--text-muted)' }}>
-            <span>✓ Zero Cloud Telemetry</span>
-            <span>✓ 0–55mm Travel Range</span>
-            <span>✓ NimBLE BLE Protocol</span>
+            <span>✓ Measurable session outcomes</span>
+            <span>✓ Personalized support profile</span>
+            <span>✓ Zero cloud video telemetry</span>
           </div>
         </div>
       </div>

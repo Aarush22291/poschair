@@ -5,11 +5,15 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, BarChart, Bar, Tool
 interface AnalyticsDashboardProps {
   sessionScoreHistory: { t: number; score: number }[];
   pastSessions: any[];
+  discomfortStart: number;
+  discomfortCurrent: number;
 }
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   sessionScoreHistory,
-  pastSessions
+  pastSessions,
+  discomfortStart,
+  discomfortCurrent,
 }) => {
   // Format live session history data for display (relative time)
   const lineChartData = sessionScoreHistory.map((item, idx) => ({
@@ -40,8 +44,57 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const isUsingDemoData = barChartData.length === 0;
   const displayBarData = isUsingDemoData ? DEMO_BAR_DATA : barChartData;
 
+  const firstScore = sessionScoreHistory[0]?.score ?? null;
+  const latestScore = sessionScoreHistory[sessionScoreHistory.length - 1]?.score ?? null;
+  const liveDelta = firstScore != null && latestScore != null ? latestScore - firstScore : null;
+  const liveGoodPct = sessionScoreHistory.length
+    ? Math.round((sessionScoreHistory.filter((s) => s.score >= 75).length / sessionScoreHistory.length) * 100)
+    : null;
+  const discomfortDelta = discomfortStart - discomfortCurrent;
+
+  const recentSessions = pastSessions.slice(0, 3);
+  const priorSessions = pastSessions.slice(3, 6);
+  const avg = (arr: any[]) => arr.length ? arr.reduce((acc, s) => acc + s.score_avg, 0) / arr.length : null;
+  const recentAvg = avg(recentSessions);
+  const priorAvg = avg(priorSessions);
+  const trendDelta = recentAvg != null && priorAvg != null ? recentAvg - priorAvg : null;
+
   return (
     <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+        {[
+          {
+            label: 'Before → Now',
+            value: liveDelta == null ? '—' : `${liveDelta >= 0 ? '+' : ''}${liveDelta.toFixed(1)} pts`,
+            hint: 'Current session score delta',
+            color: liveDelta == null ? 'var(--text-muted)' : liveDelta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+          },
+          {
+            label: 'Good Posture Time',
+            value: liveGoodPct == null ? '—' : `${liveGoodPct}%`,
+            hint: 'Frames with score ≥ 75',
+            color: 'var(--accent-cyan)',
+          },
+          {
+            label: 'Discomfort Change',
+            value: `${discomfortDelta >= 0 ? '-' : '+'}${Math.abs(discomfortDelta).toFixed(1)}`,
+            hint: 'Self-reported (0-10 scale)',
+            color: discomfortDelta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+          },
+          {
+            label: '3 vs 3 Session Trend',
+            value: trendDelta == null ? '—' : `${trendDelta >= 0 ? '+' : ''}${trendDelta.toFixed(1)} pts`,
+            hint: 'Latest 3 avg vs prior 3 avg',
+            color: trendDelta == null ? 'var(--text-muted)' : trendDelta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+          },
+        ].map((metric) => (
+          <div key={metric.label} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.01)' }}>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{metric.label}</p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: metric.color, marginBottom: 4 }}>{metric.value}</p>
+            <p style={{ fontSize: 10, color: 'var(--text-dim)' }}>{metric.hint}</p>
+          </div>
+        ))}
+      </div>
       
       {/* Recharts Live Line graph */}
       <div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Bluetooth, RefreshCw, Activity, Sliders, Eye, Cpu } from 'lucide-react';
+import { Bluetooth, RefreshCw, Activity, Sliders, Eye, Cpu, ShieldAlert, PauseCircle, User } from 'lucide-react';
 import { createBLEManager, StatusData } from './bleManager';
 import { LandmarkList } from './poseDetector';
 import { analyzePose, CalibrationBaseline, PostureData, resetPostureVelocityState } from './postureAnalyzer';
@@ -21,6 +21,24 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { BLEStatusBar } from './components/BLEStatusBar';
 import { ModeSelector } from './components/ModeSelector';
 import { LateralLeanAlert } from './components/LateralLeanAlert';
+
+interface PersonalizationProfile {
+  bodyProfile: 'petite' | 'standard' | 'tall';
+  workStyle: 'focused' | 'balanced' | 'relaxed';
+  sensitivity: number;
+  maxSupportMm: number;
+  cooldownSeconds: number;
+  injurySafeMode: boolean;
+}
+
+const DEFAULT_PROFILE: PersonalizationProfile = {
+  bodyProfile: 'standard',
+  workStyle: 'balanced',
+  sensitivity: 1,
+  maxSupportMm: 55,
+  cooldownSeconds: 30,
+  injurySafeMode: true,
+};
 
 export default function App() {
   const [userId, setUserId] = useState<number | null>(1);
@@ -49,6 +67,12 @@ export default function App() {
   const [sessionElapsed, setSessionElapsed] = useState('');
   const [sessionScoreHistory, setSessionScoreHistory] = useState<{ t: number; score: number }[]>([]);
   const [pastSessions, setPastSessions] = useState<any[]>([]);
+  const [profileSettings, setProfileSettings] = useState<PersonalizationProfile>(DEFAULT_PROFILE);
+  const [discomfortStart, setDiscomfortStart] = useState(5);
+  const [discomfortCurrent, setDiscomfortCurrent] = useState(5);
+  const [emergencyStop, setEmergencyStop] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [uiNow, setUiNow] = useState(Date.now());
 
   // Instantiate BLE manager
   const bleManager = useMemo(() => createBLEManager(), []);
@@ -111,6 +135,40 @@ export default function App() {
     loadWithRetry();
   }, []);
 
+  useEffect(() => {
+    const storedProfile = localStorage.getItem('poschair.personalization');
+    if (storedProfile) {
+      try {
+        setProfileSettings({ ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) });
+      } catch {
+        console.warn('Profile settings could not be loaded from local storage.');
+      }
+    }
+    const storedDiscomfort = localStorage.getItem('poschair.discomfort');
+    if (storedDiscomfort) {
+      try {
+        const parsed = JSON.parse(storedDiscomfort);
+        setDiscomfortStart(parsed.start ?? 5);
+        setDiscomfortCurrent(parsed.current ?? parsed.start ?? 5);
+      } catch {
+        console.warn('Discomfort scores could not be loaded from local storage.');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('poschair.personalization', JSON.stringify(profileSettings));
+  }, [profileSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('poschair.discomfort', JSON.stringify({ start: discomfortStart, current: discomfortCurrent }));
+  }, [discomfortStart, discomfortCurrent]);
+
+  useEffect(() => {
+    const id = setInterval(() => setUiNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // Session elapsed timer — updates every second while session is active
   useEffect(() => {
     if (!sessionStartTime) { setSessionElapsed(''); return; }
@@ -135,7 +193,15 @@ export default function App() {
     if (!posture) return; // incomplete landmark set — skip frame
     setLatestPosture(posture);
 
-    const positions = computeTargetPositions(posture, mode);
+    const bodyScale = profileSettings.bodyProfile === 'petite' ? 0.9 : profileSettings.bodyProfile === 'tall' ? 1.05 : 1;
+    const workScale = profileSettings.workStyle === 'focused' ? 1.1 : profileSettings.workStyle === 'relaxed' ? 0.85 : 1;
+    const rawPositions = computeTargetPositions(posture, mode, {
+      sensitivityScale: profileSettings.sensitivity * bodyScale * workScale,
+      maxPositionMm: profileSettings.maxSupportMm,
+      injurySafeMode: profileSettings.injurySafeMode,
+    });
+    const cooldownActive = cooldownUntil !== null && Date.now() < cooldownUntil;
+    const positions = (emergencyStop || cooldownActive) ? [0, 0, 0, 0, 0, 0] : rawPositions;
     setTargetPositions(positions);
 
     // Throttled BLE send (Only transmits to ESP32 if trackingMode is 'both')
@@ -154,7 +220,7 @@ export default function App() {
         return next.slice(-60); // Keep last 60 samples
       });
     }
-  }, [baseline, bleConnected, bleManager, mode, sessionStartTime, trackingMode]);
+  }, [baseline, bleConnected, bleManager, mode, sessionStartTime, trackingMode, profileSettings, emergencyStop, cooldownUntil]);
 
   const handleCalibrated = async (newBaseline: CalibrationBaseline) => {
     setBaseline(newBaseline);
@@ -197,6 +263,7 @@ export default function App() {
     resetDecisionState();
     setSessionStartTime(Date.now());
     setSessionScoreHistory([]);
+    setDiscomfortCurrent(discomfortStart);
   };
 
   const endSession = async () => {
@@ -241,10 +308,36 @@ export default function App() {
     }
   };
 
+  const triggerCooldown = useCallback(() => {
+    const until = Date.now() + (profileSettings.cooldownSeconds * 1000);
+    setCooldownUntil(until);
+    setEmergencyStop(false);
+    setTargetPositions([0, 0, 0, 0, 0, 0]);
+    if (bleConnected && trackingMode === 'both') {
+      bleManager.sendPositions([0, 0, 0, 0, 0, 0]);
+    }
+  }, [profileSettings.cooldownSeconds, bleConnected, trackingMode, bleManager]);
+
+  const toggleEmergencyStop = useCallback(() => {
+    setEmergencyStop((prev) => {
+      const next = !prev;
+      if (next) {
+        setCooldownUntil(null);
+        setTargetPositions([0, 0, 0, 0, 0, 0]);
+        if (bleConnected && trackingMode === 'both') {
+          bleManager.sendPositions([0, 0, 0, 0, 0, 0]);
+        }
+      }
+      return next;
+    });
+  }, [bleConnected, trackingMode, bleManager]);
+
   const confidencePct = latestPosture ? Math.round(latestPosture.confidence * 100) : 0;
   const confidenceColor = confidencePct >= 65 ? 'var(--accent-green)' : confidencePct >= 40 ? 'var(--accent-orange)' : 'var(--accent-red)';
   const spineVelocity = latestPosture?.velocitySpine ?? 0;
   const velocityColor = spineVelocity > 3 ? 'var(--accent-red)' : spineVelocity < -1 ? 'var(--accent-green)' : 'var(--text-secondary)';
+  const cooldownRemaining = cooldownUntil ? Math.max(0, Math.ceil((cooldownUntil - uiNow) / 1000)) : 0;
+  const cooldownActive = cooldownRemaining > 0;
 
   return (
     <div style={{ paddingBottom: '60px' }}>
@@ -256,7 +349,7 @@ export default function App() {
           </div>
           <div>
             <h1 style={{ fontSize: '20px', letterSpacing: '0.05em' }}>POS<span style={{ color: 'var(--accent-cyan)' }}>CHAIR</span></h1>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>AI-Powered Spine Corrector</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Active Posture Correction System</p>
           </div>
         </div>
 
@@ -386,6 +479,8 @@ export default function App() {
             <AnalyticsDashboard
               sessionScoreHistory={sessionScoreHistory}
               pastSessions={pastSessions}
+              discomfortStart={discomfortStart}
+              discomfortCurrent={discomfortCurrent}
             />
 
           </div>
@@ -404,6 +499,142 @@ export default function App() {
               currentMode={mode}
               onChange={(m) => setMode(m)}
             />
+
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+                <User size={18} style={{ color: 'var(--accent-cyan)' }} />
+                Personalized Correction Profile
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Body Profile
+                  <select
+                    value={profileSettings.bodyProfile}
+                    onChange={(e) => setProfileSettings((prev) => ({ ...prev, bodyProfile: e.target.value as PersonalizationProfile['bodyProfile'] }))}
+                    style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px' }}
+                  >
+                    <option value="petite">Petite</option>
+                    <option value="standard">Standard</option>
+                    <option value="tall">Tall</option>
+                  </select>
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Work Style
+                  <select
+                    value={profileSettings.workStyle}
+                    onChange={(e) => setProfileSettings((prev) => ({ ...prev, workStyle: e.target.value as PersonalizationProfile['workStyle'] }))}
+                    style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px' }}
+                  >
+                    <option value="focused">Focused</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="relaxed">Relaxed</option>
+                  </select>
+                </label>
+              </div>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                Sensitivity ({profileSettings.sensitivity.toFixed(2)}×)
+                <input
+                  type="range"
+                  min="0.5"
+                  max="1.4"
+                  step="0.05"
+                  value={profileSettings.sensitivity}
+                  onChange={(e) => setProfileSettings((prev) => ({ ...prev, sensitivity: Number(e.target.value) }))}
+                  className="custom-range"
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                Max Support Travel ({profileSettings.maxSupportMm}mm)
+                <input
+                  type="range"
+                  min="20"
+                  max="55"
+                  step="1"
+                  value={profileSettings.maxSupportMm}
+                  onChange={(e) => setProfileSettings((prev) => ({ ...prev, maxSupportMm: Number(e.target.value) }))}
+                  className="custom-range"
+                />
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={profileSettings.injurySafeMode}
+                  onChange={(e) => setProfileSettings((prev) => ({ ...prev, injurySafeMode: e.target.checked }))}
+                />
+                Injury-safe mode (caps support at 40mm)
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Discomfort Before Session ({discomfortStart.toFixed(1)})
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={discomfortStart}
+                    onChange={(e) => setDiscomfortStart(Number(e.target.value))}
+                    className="custom-range"
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Discomfort Now ({discomfortCurrent.toFixed(1)})
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={discomfortCurrent}
+                    onChange={(e) => setDiscomfortCurrent(Number(e.target.value))}
+                    className="custom-range"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+                <ShieldAlert size={18} style={{ color: 'var(--accent-cyan)' }} />
+                Safety & Trust Controls
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button onClick={toggleEmergencyStop} className={`btn ${emergencyStop ? 'btn-secondary' : 'btn-primary'}`} style={{ justifyContent: 'center' }}>
+                  {emergencyStop ? 'Release Emergency Stop' : 'Emergency Stop'}
+                </button>
+                <button
+                  onClick={triggerCooldown}
+                  className="btn btn-secondary"
+                  style={{ justifyContent: 'center' }}
+                  disabled={cooldownActive || emergencyStop}
+                >
+                  <PauseCircle size={14} />
+                  {cooldownActive ? `Cooldown ${cooldownRemaining}s` : 'Start Cooldown'}
+                </button>
+              </div>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                Cooldown Duration ({profileSettings.cooldownSeconds}s)
+                <input
+                  type="range"
+                  min="10"
+                  max="120"
+                  step="5"
+                  value={profileSettings.cooldownSeconds}
+                  onChange={(e) => setProfileSettings((prev) => ({ ...prev, cooldownSeconds: Number(e.target.value) }))}
+                  className="custom-range"
+                />
+              </label>
+
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                Privacy guarantee: posture vision processing runs locally in-browser; no webcam stream is uploaded.
+              </p>
+            </div>
 
             {/* Settings: Operational Mode (CV only vs Both) */}
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -1,6 +1,11 @@
 import type { PostureData } from './postureAnalyzer';
 
 export type Mode = 'office' | 'gaming' | 'study' | 'relax';
+export interface DecisionOptions {
+  sensitivityScale?: number;
+  maxPositionMm?: number;
+  injurySafeMode?: boolean;
+}
 
 // Module index → 2×3 grid position
 // 0=UL  1=UR
@@ -35,12 +40,12 @@ const MIN_POSITION_CHANGE = 3;
  *   mid:   25 * 2.2 = 55mm  (lumbar bears the most load)
  *   lower: 25 * 1.8 = 45mm  (sacral support)
  */
-function forwardPositions(deviation: number): { upper: number; mid: number; lower: number } {
+function forwardPositions(deviation: number, maxPosition: number): { upper: number; mid: number; lower: number } {
   const d = Math.max(0, deviation);
   return {
-    upper: Math.min(MAX_POSITION_MM, d * 1.4),
-    mid:   Math.min(MAX_POSITION_MM, d * 2.2),
-    lower: Math.min(MAX_POSITION_MM, d * 1.8),
+    upper: Math.min(maxPosition, d * 1.4),
+    mid:   Math.min(maxPosition, d * 2.2),
+    lower: Math.min(maxPosition, d * 1.8),
   };
 }
 
@@ -63,8 +68,8 @@ function velocityBonus(velocitySpine: number): number {
  * NOTE: This was previously inverted (left bonus on right lean), which made
  *       the chair actively push the user further into their lean.
  */
-function lateralSplit(lateralDeviation: number): { leftBonus: number; rightBonus: number } {
-  const boost = Math.min(MAX_POSITION_MM * 0.7, Math.abs(lateralDeviation) * 3.0);
+function lateralSplit(lateralDeviation: number, maxPosition: number): { leftBonus: number; rightBonus: number } {
+  const boost = Math.min(maxPosition * 0.7, Math.abs(lateralDeviation) * 3.0);
   if (lateralDeviation > 2)  return { leftBonus: 0,     rightBonus: boost }; // lean right → right column pushes
   if (lateralDeviation < -2) return { leftBonus: boost,  rightBonus: 0   }; // lean left  → left  column pushes
   return { leftBonus: 0, rightBonus: 0 };
@@ -77,17 +82,24 @@ export function resetDecisionState(): void {
   prevPositions = [0, 0, 0, 0, 0, 0];
 }
 
-export function computeTargetPositions(posture: PostureData, mode: Mode): number[] {
-  if (posture.confidence < CONFIDENCE_THRESHOLD) return prevPositions;
+export function computeTargetPositions(posture: PostureData, mode: Mode, options: DecisionOptions = {}): number[] {
+  const sensitivityScale = Math.min(1.5, Math.max(0.5, options.sensitivityScale ?? 1));
+  const requestedMax = Math.min(MAX_POSITION_MM, Math.max(20, options.maxPositionMm ?? MAX_POSITION_MM));
+  const dynamicMax = options.injurySafeMode ? Math.min(requestedMax, 40) : requestedMax;
 
-  const scale = MODE_SCALE[mode];
+  if (posture.confidence < CONFIDENCE_THRESHOLD) {
+    prevPositions = prevPositions.map((value) => Math.min(dynamicMax, value));
+    return prevPositions;
+  }
+
+  const scale = MODE_SCALE[mode] * sensitivityScale;
   const fwd = Math.max(0, posture.spineDeviation ?? posture.spineAngleDeg);
   const lat = posture.lateralDeviation ?? posture.lateralLeanDeg;
 
   // Velocity bonus is in mm, applied after scale so it respects mode aggressiveness
   const vBonus = velocityBonus(posture.velocitySpine) * scale;
-  const fwdPos = forwardPositions(fwd * scale);
-  const latMod = lateralSplit(lat);
+  const fwdPos = forwardPositions(fwd * scale, dynamicMax);
+  const latMod = lateralSplit(lat, dynamicMax);
 
   const raw = [
     fwdPos.upper + latMod.leftBonus  + vBonus, // UL
@@ -96,7 +108,7 @@ export function computeTargetPositions(posture: PostureData, mode: Mode): number
     fwdPos.mid   + latMod.rightBonus + vBonus, // MR
     fwdPos.lower + latMod.leftBonus  + vBonus, // LL
     fwdPos.lower + latMod.rightBonus + vBonus, // LR
-  ].map((value) => Math.min(MAX_POSITION_MM, Math.max(0, Math.round(value))));
+  ].map((value) => Math.min(dynamicMax, Math.max(0, Math.round(value))));
 
   const result = raw.map((value, index) =>
     Math.abs(value - prevPositions[index]) >= MIN_POSITION_CHANGE ? value : prevPositions[index]
