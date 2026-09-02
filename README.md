@@ -60,7 +60,8 @@ You can run PosChair **with or without physical hardware connected**. If you don
 * **Operating System:** Windows 10/11, macOS, or Linux.
 * **Browser:** **Google Chrome** or **Microsoft Edge** (Required for Web Bluetooth API). Safari and Firefox do NOT support Web Bluetooth.
 * **Webcam:** Any standard USB or built-in webcam ($640 \times 480$ or higher).
-* **Node.js:** Node.js v18.0 or higher ([Download Node.js](https://nodejs.org/)).
+* **Node.js:** Node.js **20.x LTS** (pinned in CI).
+* **Python:** Python **3.12.x** (pinned in CI for backend checks).
 
 ---
 
@@ -329,6 +330,8 @@ Full Matrix Out (55mm):          A5 37 37 37 37 37 37 92
 cd app/frontend
 npm install
 npm run dev      # Start Vite dev server on http://localhost:5173
+npm run lint     # ESLint quality gate (0 warnings allowed)
+npm run test     # Vitest unit tests
 npm run build    # Production build check (tsc && vite build)
 ```
 
@@ -337,7 +340,29 @@ npm run build    # Production build check (tsc && vite build)
 cd website
 npm install
 npm run dev      # Start Next.js dev server on http://localhost:3000
+npm run lint     # ESLint quality gate (0 warnings allowed)
 npm run build    # Production static page build (next build)
+```
+
+### Backend Development (FastAPI + SQLAlchemy)
+```bash
+cd app/backend
+python -m pip install -r requirements-dev.txt
+python -m ruff check src tests
+python -m ruff format --check src tests
+DATABASE_URL=sqlite:///./test_poschair.db python -m pytest -q
+```
+
+### Developer Quick-Check (Pre-PR)
+```bash
+# Frontend
+cd /home/runner/work/poschair/poschair/app/frontend && npm run lint && npm run test && npm run build
+
+# Website
+cd /home/runner/work/poschair/poschair/website && npm run lint && npm run build
+
+# Backend
+cd /home/runner/work/poschair/poschair/app/backend && python -m ruff check src tests && python -m ruff format --check src tests && DATABASE_URL=sqlite:///./test_poschair.db python -m pytest -q
 ```
 
 ### Firmware Compilation (Arduino IDE 2.x)
