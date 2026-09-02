@@ -11,6 +11,7 @@ function buildLandmarks(overrides: Partial<Record<number, { x: number; y: number
   }));
 
   for (const [idx, value] of Object.entries(overrides)) {
+    if (!value) continue;
     landmarks[Number(idx)] = {
       x: value.x,
       y: value.y,

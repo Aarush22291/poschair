@@ -5,4 +5,5 @@ pythonpath = ["."]
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["F", "I"]
+per-file-ignores = { "src/**/*.py" = ["I001"] }

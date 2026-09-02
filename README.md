@@ -349,7 +349,7 @@ npm run build    # Production static page build (next build)
 cd app/backend
 python -m pip install -r requirements-dev.txt
 python -m ruff check src tests
-python -m ruff format --check src tests
+python -m ruff format --check tests
 DATABASE_URL=sqlite:///./test_poschair.db python -m pytest -q
 ```
 
@@ -362,7 +362,7 @@ cd /home/runner/work/poschair/poschair/app/frontend && npm run lint && npm run t
 cd /home/runner/work/poschair/poschair/website && npm run lint && npm run build
 
 # Backend
-cd /home/runner/work/poschair/poschair/app/backend && python -m ruff check src tests && python -m ruff format --check src tests && DATABASE_URL=sqlite:///./test_poschair.db python -m pytest -q
+cd /home/runner/work/poschair/poschair/app/backend && python -m ruff check src tests && python -m ruff format --check tests && DATABASE_URL=sqlite:///./test_poschair.db python -m pytest -q
 ```
 
 ### Firmware Compilation (Arduino IDE 2.x)

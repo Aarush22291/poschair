@@ -169,7 +169,7 @@ export default function App() {
           newBaseline.shoulderWidth,
           newBaseline.torsoLength
         );
-      } catch (err) {
+      } catch {
         console.warn('Unable to save calibration to backend database.');
       }
     }
@@ -218,7 +218,7 @@ export default function App() {
         await logSession(userId, avgScore, goodPct, 100 - goodPct, sessionScoreHistory);
         const refreshed = await getSessions(userId);
         setPastSessions(refreshed || []);
-      } catch (err) {
+      } catch {
         console.warn('Backend logs write failed.');
       }
     }

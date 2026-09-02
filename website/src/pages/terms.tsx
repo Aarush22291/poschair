@@ -35,7 +35,7 @@ export default function Terms() {
         </Section>
 
         <Section title="4. No warranty">
-          <p>This software is provided "as is" without warranty of any kind. The authors make no guarantees about correctness, reliability, or fitness for any particular purpose. Use in safety-critical or commercial applications is not recommended without independent review.</p>
+          <p>This software is provided &quot;as is&quot; without warranty of any kind. The authors make no guarantees about correctness, reliability, or fitness for any particular purpose. Use in safety-critical or commercial applications is not recommended without independent review.</p>
         </Section>
 
         <Section title="5. Changes to these terms">
