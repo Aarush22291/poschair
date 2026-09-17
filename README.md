@@ -62,7 +62,7 @@ You can run PosChair **with or without physical hardware connected**. If you don
 * **Operating System:** Windows 10/11, macOS, or Linux.
 * **Browser:** **Google Chrome** or **Microsoft Edge** (Required for Web Bluetooth API). Safari and Firefox do NOT support Web Bluetooth.
 * **Webcam:** Any standard USB or built-in webcam ($640 \times 480$ or higher).
-* **Node.js:** Node.js **20.x LTS** (pinned in CI).
+* **Node.js:** Node.js **24.x LTS** (pinned in CI).
 * **Python:** Python **3.12.x** (pinned in CI for backend checks).
 
 ---
