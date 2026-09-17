@@ -31,9 +31,10 @@ const uint8_t LPWM_PINS[NUM_MODULES] = {26, 16, 13, 18, 22, 19};
 
 #define EN_PIN 5
 #define BATTERY_ADC_PIN 34
-#define BATTERY_ADC_MAX 4095
-#define BATTERY_REF_MV 3300
-#define BATTERY_DIVIDER 2.0f
+#define BATTERY_R1_OHMS 120000.0f
+#define BATTERY_R2_OHMS 27000.0f
+#define BATTERY_DIVIDER_RATIO ((BATTERY_R1_OHMS + BATTERY_R2_OHMS) / BATTERY_R2_OHMS)
+#define BATTERY_CALIBRATION_FACTOR 1.0f
 
 #define PWM_FREQ 5000
 #define PWM_RES 8
@@ -79,8 +80,8 @@ void stopAll() {
 }
 
 uint16_t readBatteryMv() {
-  int raw = analogRead(BATTERY_ADC_PIN);
-  return (uint16_t)((raw / (float)BATTERY_ADC_MAX) * BATTERY_REF_MV * BATTERY_DIVIDER);
+  const uint32_t adcMv = analogReadMilliVolts(BATTERY_ADC_PIN);
+  return (uint16_t)(adcMv * BATTERY_DIVIDER_RATIO * BATTERY_CALIBRATION_FACTOR);
 }
 
 void printHelp() {
@@ -230,6 +231,7 @@ void setup() {
 
   pinMode(EN_PIN, OUTPUT);
   digitalWrite(EN_PIN, HIGH);
+  analogSetPinAttenuation(BATTERY_ADC_PIN, ADC_11db);
 
   for (int i = 0; i < NUM_MODULES; i++) {
     ledcAttach(RPWM_PINS[i], PWM_FREQ, PWM_RES);

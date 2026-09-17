@@ -16,8 +16,9 @@ unsigned long lastStatusMs = 0;
 bool failsafeActive = false;
 
 uint16_t readBatteryMv() {
-  int raw = analogRead(BATTERY_ADC_PIN);
-  return (uint16_t)((raw / (float)BATTERY_ADC_MAX) * BATTERY_REF_MV * BATTERY_DIVIDER);
+  const uint32_t adcMv = analogReadMilliVolts(BATTERY_ADC_PIN);
+  const float inputMv = adcMv * BATTERY_DIVIDER_RATIO * BATTERY_CALIBRATION_FACTOR;
+  return (uint16_t)min(inputMv, 65535.0f);
 }
 
 void setup() {
@@ -27,11 +28,13 @@ void setup() {
   Serial.println("Layout: UL=M0 UR=M1 ML=M2 MR=M3 LL=M4 LR=M5");
   Serial.println("Actuator: BTS7960 + DC motor + worm-rack timed position control");
 
+  analogSetPinAttenuation(BATTERY_ADC_PIN, ADC_11db);
+
   motors.begin();
   motors.homeAll();
   bleManager.begin(&motors);
 
-  Serial.println("Ready. Positions are 0-100mm. Advertising as " BLE_DEVICE_NAME ".");
+  Serial.printf("Ready. Positions are 0-%dmm. Advertising as %s.\n", MAX_POSITION_MM, BLE_DEVICE_NAME);
 }
 
 void loop() {

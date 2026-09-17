@@ -2,6 +2,9 @@
   "name": "poschair-frontend",
   "private": true,
   "version": "1.3.0",
+  "description": "Local-first posture analysis and ESP32 chair-control desktop application.",
+  "author": "Aarush22291",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "main": "electron/main.js",
   "scripts": {

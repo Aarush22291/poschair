@@ -1,9 +1,37 @@
-const { app, BrowserWindow, shell, Tray, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, session } = require('electron')
 const path = require('path')
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+
+app.commandLine.appendSwitch('enable-features', 'WebBluetooth')
+
+function isTrustedAppOrigin(origin) {
+  if (typeof origin !== 'string') return false
+  if (origin === 'null' || origin.startsWith('file://')) return true
+
+  try {
+    const url = new URL(origin)
+    return url.protocol === 'http:' && url.hostname === 'localhost' && url.port === '5173'
+  } catch {
+    return false
+  }
+}
+
+function configurePermissions() {
+  const allowed = new Set(['media', 'bluetooth', 'bluetooth-scanning'])
+
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission, origin) => (
+    isTrustedAppOrigin(origin) && allowed.has(permission)
+  ))
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    callback(isTrustedAppOrigin(details.requestingUrl) && allowed.has(permission))
+  })
+  session.defaultSession.setDevicePermissionHandler((details) => (
+    details.deviceType === 'bluetooth' && isTrustedAppOrigin(details.origin)
+  ))
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -17,7 +45,8 @@ function createWindow() {
       preload:        path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      backgroundThrottling: false, // Prevents background processes/BLE from throttling when hidden
+      sandbox: true,
+      webSecurity: true,
     },
     icon: path.join(__dirname, '..', 'resources', 'icon.ico'),
   })
@@ -32,18 +61,33 @@ function createWindow() {
 
   // Open external links in the default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url)
     return { action: 'deny' }
   })
 
-  // Intercept window close to hide instead, allowing background tracking to remain running
-  mainWindow.on('close', (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = mainWindow.webContents.getURL()
+    if (url !== currentUrl) event.preventDefault()
+  })
+
+  let bluetoothTimeout = null
+  mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
+    event.preventDefault()
+    const chair = devices.find((device) => device.deviceName === 'POSCHAIR_001')
+    if (chair) {
+      if (bluetoothTimeout) clearTimeout(bluetoothTimeout)
+      bluetoothTimeout = null
+      callback(chair.deviceId)
+      return
     }
-    return false;
-  });
+
+    if (!bluetoothTimeout) {
+      bluetoothTimeout = setTimeout(() => {
+        bluetoothTimeout = null
+        callback('')
+      }, 10000)
+    }
+  })
 }
 
 function createTray() {
@@ -82,6 +126,7 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  configurePermissions()
   createWindow()
   createTray()
   
@@ -92,6 +137,13 @@ app.whenReady().then(() => {
       mainWindow.show()
     }
   })
+})
+
+ipcMain.handle('open-external', async (_event, url) => {
+  if (typeof url !== 'string' || (!url.startsWith('https://') && !url.startsWith('http://'))) {
+    throw new Error('Only HTTP(S) links may be opened externally.')
+  }
+  await shell.openExternal(url)
 })
 
 app.on('before-quit', () => {

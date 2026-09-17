@@ -8,7 +8,8 @@ void MotorController::begin() {
     ledcAttach(RPWM_PINS[i], MOTOR_PWM_FREQ, MOTOR_PWM_RES);
     ledcAttach(LPWM_PINS[i], MOTOR_PWM_FREQ, MOTOR_PWM_RES);
     _stop(i);
-    _currentPos[i] = 0;
+    _estimatedPos[i] = 0.0f;
+    _moveStartPos[i] = 0.0f;
     _targetPos[i] = 0;
     _state[i] = MotorState::IDLE;
   }
@@ -34,7 +35,8 @@ void MotorController::homeAll() {
 
   for (int i = 0; i < NUM_MODULES; i++) {
     _stop(i);
-    _currentPos[i] = 0;
+    _estimatedPos[i] = 0.0f;
+    _moveStartPos[i] = 0.0f;
     _targetPos[i] = 0;
     _state[i] = MotorState::IDLE;
   }
@@ -49,18 +51,21 @@ void MotorController::setTarget(int idx, uint8_t position) {
 
   if (abs((int)position - (int)_targetPos[idx]) < MIN_POSITION_CHANGE) return;
 
+  const unsigned long now = millis();
+  _updateEstimatedPosition(idx, now);
   _targetPos[idx] = position;
-  _moveDurationMs[idx] = _durationForDelta(_currentPos[idx], _targetPos[idx]);
-  _moveStartMs[idx] = millis();
+  _moveStartPos[idx] = _estimatedPos[idx];
+  _moveDurationMs[idx] = _durationForDelta(_moveStartPos[idx], _targetPos[idx]);
+  _moveStartMs[idx] = now;
 
-  if (_moveDurationMs[idx] == 0 || _currentPos[idx] == _targetPos[idx]) {
+  if (_moveDurationMs[idx] == 0 || abs(_estimatedPos[idx] - _targetPos[idx]) < 0.5f) {
     _stop(idx);
-    _currentPos[idx] = _targetPos[idx];
+    _estimatedPos[idx] = _targetPos[idx];
     _state[idx] = MotorState::IDLE;
     return;
   }
 
-  if (_targetPos[idx] > _currentPos[idx]) {
+  if (_targetPos[idx] > _estimatedPos[idx]) {
     _state[idx] = MotorState::MOVING_OUT;
     _driveOut(idx, MOTOR_PWM_NORMAL);
   } else {
@@ -75,10 +80,11 @@ void MotorController::update() {
   for (int i = 0; i < NUM_MODULES; i++) {
     if (_state[i] != MotorState::MOVING_OUT && _state[i] != MotorState::MOVING_IN) continue;
 
+    _updateEstimatedPosition(i, now);
     const unsigned long elapsed = now - _moveStartMs[i];
     if (elapsed >= _moveDurationMs[i]) {
       _stop(i);
-      _currentPos[i] = _targetPos[i];
+      _estimatedPos[i] = _targetPos[i];
       _state[i] = MotorState::IDLE;
     }
   }
@@ -86,7 +92,7 @@ void MotorController::update() {
 
 uint8_t MotorController::getCurrentPosition(int idx) const {
   if (idx < 0 || idx >= NUM_MODULES) return 0;
-  return _currentPos[idx];
+  return (uint8_t)constrain((int)roundf(_estimatedPos[idx]), 0, MAX_POSITION_MM);
 }
 
 bool MotorController::isAnyMoving() const {
@@ -97,9 +103,11 @@ bool MotorController::isAnyMoving() const {
 }
 
 void MotorController::stopAll() {
+  const unsigned long now = millis();
   for (int i = 0; i < NUM_MODULES; i++) {
+    _updateEstimatedPosition(i, now);
     _stop(i);
-    _targetPos[i] = _currentPos[i];
+    _targetPos[i] = getCurrentPosition(i);
     _state[i] = MotorState::IDLE;
   }
 }
@@ -124,8 +132,21 @@ void MotorController::_brake(int idx) {
   ledcWrite(LPWM_PINS[idx], 255);
 }
 
-unsigned long MotorController::_durationForDelta(uint8_t fromPos, uint8_t toPos) const {
-  const float deltaMm = abs((int)toPos - (int)fromPos) * POSITION_UNIT_TO_MM;
+void MotorController::_updateEstimatedPosition(int idx, unsigned long now) {
+  if (_state[idx] != MotorState::MOVING_OUT && _state[idx] != MotorState::MOVING_IN) return;
+  if (_moveDurationMs[idx] == 0) {
+    _estimatedPos[idx] = _targetPos[idx];
+    return;
+  }
+
+  const unsigned long elapsed = now - _moveStartMs[idx];
+  const float progress = min(1.0f, elapsed / (float)_moveDurationMs[idx]);
+  _estimatedPos[idx] = _moveStartPos[idx]
+    + (_targetPos[idx] - _moveStartPos[idx]) * progress;
+}
+
+unsigned long MotorController::_durationForDelta(float fromPos, uint8_t toPos) const {
+  const float deltaMm = fabsf(toPos - fromPos) * POSITION_UNIT_TO_MM;
   if (MOTOR_SPEED_MM_PER_MS <= 0.0f) return 0;
   return (unsigned long)(deltaMm / MOTOR_SPEED_MM_PER_MS);
 }

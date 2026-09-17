@@ -16,7 +16,7 @@ const steps = [
   {
     step: '03',
     title: 'Paraspinal Matrix Mapping',
-    desc: 'The decision engine scales deviation across 6 independent actuators (UL, UR, ML, MR, LL, LR) capped at the 55mm hardware safe travel limit.',
+    desc: 'The decision engine scales deviation across 6 independent actuators (UL, UR, ML, MR, LL, LR) capped at the prototype\'s configured 55mm travel limit.',
     code: 'computeTargetPositions(posture, mode) // 0–55mm output',
   },
   {
@@ -31,7 +31,7 @@ export default function HowItWorks() {
   return (
     <section id="how-it-works" style={{ padding: '80px 0' }}>
       <div style={{ textTransform: 'uppercase', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent-blue)', marginBottom: 12 }}>
-        Closed-Loop System
+        Vision-Guided Control Prototype
       </div>
       <h2 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 48, letterSpacing: '-0.02em' }}>
         How the Vision-to-Motion Pipeline Works

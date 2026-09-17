@@ -3,7 +3,7 @@
 
 // Command packet (app -> ESP32), 8 bytes:
 // [0] 0xA5
-// [1..6] UL, UR, ML, MR, LL, LR positions, each 0-100mm
+// [1..6] UL, UR, ML, MR, LL, LR positions, each 0-55mm
 // [7] XOR checksum of bytes [0..6]
 #define CMD_HEADER 0xA5
 #define CMD_PACKET_SIZE 8
@@ -35,6 +35,6 @@ inline bool parseCommand(const uint8_t* data, size_t len, CommandPacket& out) {
 // [0] 0x5A
 // [1] flags: bit0=ok, bit1=failsafe, bit2=homed, bit3=any motor moving
 // [2..3] battery voltage in millivolts, big-endian uint16
-// [4..9] current UL, UR, ML, MR, LL, LR positions, each 0-100mm
+// [4..9] estimated UL, UR, ML, MR, LL, LR positions, each 0-55mm
 #define STATUS_HEADER 0x5A
 #define STATUS_PACKET_SIZE 10

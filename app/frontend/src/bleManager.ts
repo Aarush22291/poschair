@@ -7,6 +7,7 @@ const MAX_POSITION_MM = 55;
 
 export interface StatusData {
   flags: number;
+  batteryMv: number;
   currentPositions: number[];
   isOk: boolean;
   isFailsafe: boolean;
@@ -23,7 +24,7 @@ export interface BLEManager {
   onDisconnect: (() => void) | null;
 }
 
-function buildCommandPacket(positions: number[]): ArrayBuffer {
+export function buildCommandPacket(positions: number[]): ArrayBuffer {
   const buf = new Uint8Array(8);
   buf[0] = 0xA5;
 
@@ -38,13 +39,14 @@ function buildCommandPacket(positions: number[]): ArrayBuffer {
   return buf.buffer;
 }
 
-function parseStatusPacket(buf: DataView): StatusData | null {
+export function parseStatusPacket(buf: DataView): StatusData | null {
   if (buf.byteLength < 10) return null;
   if (buf.getUint8(0) !== 0x5A) return null;
 
   const flags = buf.getUint8(1);
   return {
     flags,
+    batteryMv: buf.getUint16(2, false),
     currentPositions: Array.from({ length: 6 }, (_, i) => buf.getUint8(4 + i)),
     isOk: Boolean(flags & 0x01),
     isFailsafe: Boolean(flags & 0x02),
@@ -56,12 +58,34 @@ function parseStatusPacket(buf: DataView): StatusData | null {
 export function createBLEManager(): BLEManager {
   let device: BluetoothDevice | null = null;
   let cmdChar: BluetoothRemoteGATTCharacteristic | null = null;
+  let pendingPacket: ArrayBuffer | null = null;
+  let writeInFlight = false;
+
+  const flushPendingWrite = async (): Promise<void> => {
+    if (writeInFlight || !cmdChar || !pendingPacket) return;
+
+    const packet = pendingPacket;
+    pendingPacket = null;
+    writeInFlight = true;
+    try {
+      await cmdChar.writeValueWithoutResponse(packet);
+    } catch (error) {
+      console.error('BLE command write failed:', error);
+    } finally {
+      writeInFlight = false;
+      if (pendingPacket) void flushPendingWrite();
+    }
+  };
 
   const mgr: BLEManager = {
     onStatus: null,
     onDisconnect: null,
 
     async connect() {
+      if (!navigator.bluetooth) {
+        throw new Error('Web Bluetooth is not available in this browser. Use Chrome, Edge, or the PosChair desktop app.');
+      }
+
       device = await navigator.bluetooth.requestDevice({
         filters: [{ name: 'POSCHAIR_001' }],
         optionalServices: [SERVICE_UUID],
@@ -69,10 +93,12 @@ export function createBLEManager(): BLEManager {
 
       device.addEventListener('gattserverdisconnected', () => {
         cmdChar = null;
+        pendingPacket = null;
         mgr.onDisconnect?.();
       });
 
-      const server = await device.gatt!.connect();
+      if (!device.gatt) throw new Error('The selected device does not expose a Bluetooth GATT server.');
+      const server = await device.gatt.connect();
       const service = await server.getPrimaryService(SERVICE_UUID);
       cmdChar = await service.getCharacteristic(COMMAND_CHAR_UUID);
       const statusChar = await service.getCharacteristic(STATUS_CHAR_UUID);
@@ -89,11 +115,15 @@ export function createBLEManager(): BLEManager {
     disconnect() {
       device?.gatt?.disconnect();
       cmdChar = null;
+      pendingPacket = null;
     },
 
     sendPositions(positions: number[]) {
       if (!cmdChar) return;
-      cmdChar.writeValueWithoutResponse(buildCommandPacket(positions)).catch(console.error);
+      // Latest command wins while a BLE write is in flight. This prevents a
+      // growing queue of stale posture commands on slow Bluetooth links.
+      pendingPacket = buildCommandPacket(positions);
+      void flushPendingWrite();
     },
 
     isConnected() {

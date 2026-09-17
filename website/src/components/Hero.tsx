@@ -64,7 +64,7 @@ export default function Hero() {
           marginBottom: '40px',
           maxWidth: '520px',
         }}>
-          PosChair tracks 33 3D body landmarks at 60 FPS in WebAssembly. When posture degrades, it commands a 6-zone motorized paraspinal backrest to actively push your spine back into alignment.
+          PosChair tracks 33 3D body landmarks in WebAssembly. When posture degrades, its bench prototype can command a 6-zone motorized paraspinal backrest for configurable support.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -274,7 +274,7 @@ export default function Hero() {
           justifyContent: 'space-between',
         }}>
           <span>TX Packet: 0xA5 {positions.map(p => p.toString(16).padStart(2, '0').toUpperCase()).join(' ')} [XOR]</span>
-          <span style={{ color: 'var(--accent-blue)' }}>NimBLE 50Hz</span>
+          <span style={{ color: 'var(--accent-blue)' }}>NimBLE 10Hz</span>
         </div>
       </div>
     </section>
