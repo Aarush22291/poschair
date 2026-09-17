@@ -18,11 +18,14 @@ This is the build-facing wiring reference for the ESP32 DevKit V1 version of Pos
 | ESP32 DevKit V1, 38-pin | 1 | Arduino board target: `ESP32 Dev Module` |
 | BTS7960 H-bridge driver | 6 | One driver per actuator |
 | DC geared motor | 6 | One motor per worm-rack actuator |
-| Worm-rack actuator + foam pad | 6 | 0-100mm travel target |
+| Worm-rack actuator + foam pad | 6 | 0-55mm configured travel limit |
 | 12V motor battery / supply | 1 | Motor power rail only |
-| 100k resistor | 2 | Battery voltage divider |
+| 120k resistor | 1 | Battery voltage-divider high side |
+| 27k resistor | 1 | Battery voltage-divider low side |
+| 100nF ceramic capacitor | 1 | ADC filtering, from GPIO34 to ground |
 | Common ground bus | 1 | Required |
-| Inline fuse / switch | 1 recommended | Put on battery positive |
+| Inline fuse / switch | 1 required | Put on battery positive |
+| Latching emergency-stop switch | 1 required for occupied testing | Interrupt the motor supply |
 
 ## Physical Grid
 
@@ -112,24 +115,45 @@ Use thicker wire for `B+`, `B-`, `M+`, and `M-` than for ESP32 signal wires.
 
 ## Battery Voltage Divider
 
-Use two 100k resistors so the ESP32 ADC sees half of the battery voltage.
+Do not use an equal-value divider on a 12V rail. It would place roughly 6V
+on GPIO34 and can damage the ESP32. The reference divider
+below keeps the ADC under 2.76V even if the supply reaches 15V.
 
 ```text
-Battery + ---- R1 100k ----+---- ESP32 GPIO34
-                           |
-                           R2 100k
-                           |
-Ground bus ----------------+
+Battery + ---- R1 120k ----+---- ESP32 GPIO34
+                           |          |
+                           R2 27k     C1 100nF
+                           |          |
+Ground bus ----------------+----------+
 ```
 
 Firmware constants:
 
 ```cpp
 #define BATTERY_ADC_PIN 34
-#define BATTERY_ADC_MAX 4095
-#define BATTERY_REF_MV 3300
-#define BATTERY_DIVIDER 2.0f
+#define BATTERY_R1_OHMS 120000.0f
+#define BATTERY_R2_OHMS 27000.0f
+#define BATTERY_DIVIDER_RATIO ((BATTERY_R1_OHMS + BATTERY_R2_OHMS) / BATTERY_R2_OHMS)
 ```
+
+Measure the actual battery voltage with a calibrated multimeter and tune
+`BATTERY_CALIBRATION_FACTOR` before relying on dashboard readings.
+
+## Human-Use Hardware Gate
+
+The current timed-position controller is suitable for an unoccupied bench
+prototype only. Do not test the powered actuator matrix against a person until
+all of the following have been implemented and independently verified:
+
+1. A normally-closed, latching emergency stop that removes motor power.
+2. Independent retract and extend limit sensing for every actuator.
+3. Motor-current or load/force monitoring with a hardware cutoff.
+4. Mechanical end stops that survive the worst-case motor stall load.
+5. Per-channel fusing or current limiting sized from measured stall current.
+6. A verified maximum pad force and pressure for every supported body position.
+7. A fault test covering a disconnected sensor, jammed actuator, BLE loss, and controller reset.
+
+Software timeout retraction is not a substitute for these hardware controls.
 
 ## Build Order
 
@@ -183,7 +207,7 @@ If upload fails, hold the BOOT button while starting upload and release it after
 | Motor moves backward | Motor output polarity reversed | Swap `M+` and `M-` on that driver |
 | Only one direction works | RPWM/LPWM swapped or loose wire | Recheck assigned GPIO and BTS7960 pin |
 | BLE works but motors do nothing | Driver enable/power missing | Check GPIO5, VCC, GND, B+ and B- |
-| Battery reading is wrong | Divider values or ground wrong | Use two equal resistors and common ground |
+| Battery reading is wrong | Divider ratio, ADC calibration, or ground wrong | Verify 120k/27k values, common ground, and calibration factor |
 | Upload fails | DevKit boot mode issue | Hold BOOT until upload starts |
 
 ## Final Safety Check
@@ -193,3 +217,5 @@ If upload fails, hold the BOOT button while starting upload and release it after
 - Every motor can retract before testing extension.
 - Foam pads have soft edges and mechanical travel limits.
 - The first full test is done without a person leaning on the chair.
+- The motor rail has a tested latching emergency stop.
+- Occupied testing remains disabled until the human-use hardware gate is complete.

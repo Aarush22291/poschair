@@ -61,9 +61,12 @@ export const BLEStatusBar: React.FC<BLEStatusBarProps> = ({
           </span>
         )}
         {bleStatus && (
-          <span style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>
-            Positions: [{bleStatus.currentPositions.join(', ')}]
-          </span>
+          <>
+            <span>{(bleStatus.batteryMv / 1000).toFixed(2)} V</span>
+            <span style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>
+              Est. positions: [{bleStatus.currentPositions.join(', ')}]
+            </span>
+          </>
         )}
       </div>
     </footer>

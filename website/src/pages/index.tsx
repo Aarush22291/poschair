@@ -40,16 +40,16 @@ export default function Home() {
                 <tr style={{ background: 'var(--surface-base)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Component</th>
                   <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Specification / Protocol</th>
-                  <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Performance / Guarantee</th>
+                  <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Current Implementation</th>
                 </tr>
               </thead>
               <tbody>
                 {[
                   { component: 'Actuator Grid', spec: '2×3 Paraspinal matrix (UL, UR, ML, MR, LL, LR)', perf: '0–55mm travel, 65Mn pre-curved steel' },
                   { component: 'Motor Driver', spec: '6× BTS7960 High-Current H-Bridge Drivers', perf: '50Hz LEDC PWM frequency' },
-                  { component: 'Microcontroller', spec: 'ESP32 DevKit V1 (38-pin, 240MHz dual-core)', perf: '2000ms watchdog hardware failsafe' },
-                  { component: 'Vision Pipeline', spec: 'MediaPipe Pose (full float16 model)', perf: '33 3D landmarks @ 60 FPS in WASM' },
-                  { component: 'Wireless Protocol', spec: 'NimBLE Web Bluetooth API (8-byte binary packets)', perf: '<50ms roundtrip packet latency' },
+                  { component: 'Microcontroller', spec: 'ESP32 DevKit V1 (38-pin, 240MHz dual-core)', perf: '2000ms command-loss fallback' },
+                  { component: 'Vision Pipeline', spec: 'MediaPipe Pose (full float16 model)', perf: '33 3D landmarks in WASM' },
+                  { component: 'Wireless Protocol', spec: 'NimBLE Web Bluetooth API (8-byte binary packets)', perf: 'Up to 10 command packets/second' },
                   { component: 'Biomechanical Filter', spec: 'Exponential Moving Average (EMA α=0.35)', perf: 'Jitter-free scale-invariant tracking' },
                 ].map((row, i) => (
                   <tr key={i} style={{ borderBottom: i < 5 ? '1px solid var(--border)' : 'none' }}>

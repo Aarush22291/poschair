@@ -16,6 +16,7 @@ function buildPosture(overrides: Partial<PostureData> = {}): PostureData {
     confidence: 1,
     postureScore: 100,
     timestamp: 1,
+    measurementSource: 'world-3d',
     ...overrides,
   };
 }

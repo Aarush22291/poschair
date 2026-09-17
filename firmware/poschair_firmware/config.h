@@ -16,11 +16,14 @@ const uint8_t LPWM_PINS[NUM_MODULES] = {26, 16, 13, 18, 22, 19};
 #define EN_PIN 5
 
 // Battery voltage divider input. GPIO34 is input-only and ADC1_CH6.
-// Wiring: Battery+ -> R1 100k -> GPIO34 -> R2 100k -> GND.
+// Wiring: Battery+ -> R1 120k -> GPIO34 -> R2 27k -> GND.
+// This keeps the ADC below 2.76V at a 15V worst-case supply input.
 #define BATTERY_ADC_PIN 34
-#define BATTERY_ADC_MAX 4095
-#define BATTERY_REF_MV 3300
-#define BATTERY_DIVIDER 2.0f
+#define BATTERY_R1_OHMS 120000.0f
+#define BATTERY_R2_OHMS 27000.0f
+#define BATTERY_DIVIDER_RATIO ((BATTERY_R1_OHMS + BATTERY_R2_OHMS) / BATTERY_R2_OHMS)
+#define BATTERY_CALIBRATION_FACTOR 1.0f
+#define BATTERY_MAX_INPUT_MV 15000
 
 // Motor PWM settings for ESP32 Arduino core v3 ledcAttach/ledcWrite API.
 #define MOTOR_PWM_NORMAL 200
@@ -29,8 +32,7 @@ const uint8_t LPWM_PINS[NUM_MODULES] = {26, 16, 13, 18, 22, 19};
 #define MOTOR_PWM_RES 8
 
 // Timed position model: position unit 0-55 maps to 0-55mm extension.
-// 55mm is the v2 hardware safe limit: pre-curved strips bow 20mm at rest,
-// servo adds up to 30mm more. Going beyond 55mm risks over-compressing the strip.
+// 55mm is the current prototype's configured mechanical travel limit.
 #define MOTOR_SPEED_MM_PER_MS 0.075f
 #define MAX_POSITION_MM 55
 #define POSITION_UNIT_TO_MM 1.0f

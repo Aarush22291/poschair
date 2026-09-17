@@ -9,17 +9,17 @@ const features = [
   {
     tag: "COMPUTER VISION",
     title: "On-Device MediaPipe WASM Pipeline",
-    desc: "Executes the full 33-landmark pose model client-side inside WebAssembly at 60 FPS. Video streams and body coordinates never leave your machine.",
+    desc: "Executes the full 33-landmark pose model client-side inside WebAssembly. The vision pipeline does not upload video frames or body coordinates.",
   },
   {
     tag: "HARDWARE BLE",
     title: "NimBLE 5.0 Low-Latency Protocol",
-    desc: "Transmits 8-byte packed binary payloads with XOR checksums directly from Web Bluetooth to the ESP32 controller at 50Hz update rates.",
+    desc: "Transmits 8-byte packed binary payloads with XOR checksums from Web Bluetooth to the ESP32 controller at up to 10Hz.",
   },
   {
     tag: "SAFETY",
-    title: "Hardware Watchdog Failsafe",
-    desc: "If Bluetooth disconnects or the browser tab closes, the onboard watchdog automatically triggers full motor retraction to the 0mm home position within 2 seconds.",
+    title: "Command-Link Watchdog",
+    desc: "After 2 seconds without valid commands, firmware requests open-loop retraction. Independent hardware limits, force monitoring, and an emergency stop are still required for occupied testing.",
   },
   {
     tag: "BIOMECHANICS",
@@ -29,7 +29,7 @@ const features = [
   {
     tag: "LOCAL DATA",
     title: "Zero Cloud Telemetry",
-    desc: "Calibration baselines and posture history log exclusively to your local PostgreSQL/SQLite database. Complete privacy by design.",
+    desc: "The desktop build stores calibration and posture history on the device; self-hosted deployments can use the included backend database.",
   },
 ];
 

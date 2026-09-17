@@ -6,7 +6,7 @@ import type { PostureData } from '../postureAnalyzer';
 interface CameraViewProps {
   isTracking: boolean;
   score: number | null;
-  onLandmarks: (landmarks: LandmarkList) => void;
+  onLandmarks: (landmarks: LandmarkList, worldLandmarks?: LandmarkList) => void;
   latestPosture?: PostureData | null;
   targetPositions?: number[];
 }
@@ -147,7 +147,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
         if (result && result.landmarks.length > 0) {
           const landmarks = result.landmarks[0];
-          onLandmarks(landmarks);
+          onLandmarks(landmarks, result.worldLandmarks?.[0]);
 
           // ── Draw full body skeleton ──────────────────────────
           const ctx = canvas.getContext('2d');

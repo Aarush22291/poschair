@@ -141,7 +141,7 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             <CheckCircle size={48} style={{ color: 'var(--accent-green)', margin: '0 auto 16px' }} />
             <h2 style={{ fontSize: '22px', marginBottom: '12px' }}>Calibration Complete!</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
-              Your natural sitting baseline has been captured and successfully saved to the database.
+              Your natural sitting baseline has been captured and saved for this device.
             </p>
             <button onClick={onClose} className="btn btn-primary" style={{ width: '120px', justifyContent: 'center' }}>Done</button>
           </div>

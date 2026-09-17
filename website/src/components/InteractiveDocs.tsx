@@ -29,7 +29,7 @@ const DOC_TOPICS: DocTopic[] = [
       'Privacy: 0 bytes uploaded to external servers',
     ],
     icon: '📷',
-    badge: '60 FPS WASM',
+    badge: 'On-Device WASM',
     color: '#38bdf8',
   },
   {
@@ -80,10 +80,10 @@ const DOC_TOPICS: DocTopic[] = [
       'Header: 0xA5 start byte',
       'Payload: 6 bytes for UL, UR, ML, MR, LL, LR positions',
       'Checksum: XOR verification byte',
-      'Rate: 50Hz LEDC PWM update frequency',
+      'Command rate: up to 10Hz',
     ],
     icon: '📡',
-    badge: '50Hz NimBLE',
+    badge: '10Hz Commands',
     color: '#38bdf8',
   },
   {
@@ -107,19 +107,19 @@ const DOC_TOPICS: DocTopic[] = [
   {
     id: 'safety',
     category: 'SAFETY',
-    title: 'Watchdog Failsafe System',
-    simpleTitle: '6. Auto-Retract Safety',
-    shortDesc: 'Automatically retracts all motors if connection drops.',
+    title: 'Command-Link Watchdog',
+    simpleTitle: '6. Connection-Loss Fallback',
+    shortDesc: 'Requests open-loop retraction if valid commands stop.',
     laymanExplanation:
-      'Your safety comes first: if your laptop battery dies, Bluetooth disconnects, or you close the browser tab, the chair automatically detects the silence within 2 seconds and pulls all 6 cushions safely flat.',
+      'If the laptop stops sending valid commands, firmware detects the silence within 2 seconds and requests retraction. Because position is time-estimated rather than measured, this does not replace limit switches, force monitoring, or an emergency stop.',
     techDetails: [
-      'Watchdog Timeout: 2000ms hardware timer',
-      'Home Position: All motors retract to 0mm',
+      'Watchdog Timeout: 2000ms software timer',
+      'Fallback Target: Request all motors retract to 0mm',
       'Voltage Sensing: GPIO34 12V ADC divider check',
       'Common Ground: Single bus reference line',
     ],
     icon: '🛡️',
-    badge: '2s Failsafe',
+    badge: '2s Fallback',
     color: '#22c55e',
   },
 ];

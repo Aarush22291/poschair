@@ -27,7 +27,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('office');
 
   // Operational tracking mode: 'cv' (Computer Vision only) vs 'both' (CV + hardware BLE write control)
-  const [trackingMode, setTrackingMode] = useState<'cv' | 'both'>('both');
+  const [trackingMode, setTrackingMode] = useState<'cv' | 'both'>('cv');
 
   // BLE states
   const [bleConnected, setBleConnected] = useState(false);
@@ -63,6 +63,8 @@ export default function App() {
     bleManager.onDisconnect = () => {
       setBleConnected(false);
       setBleStatus(null);
+      setTrackingMode('cv');
+      setTargetPositions([0, 0, 0, 0, 0, 0]);
     };
   }, [bleManager]);
 
@@ -73,6 +75,8 @@ export default function App() {
       if (Date.now() - lastPacketTime > 3000) {
         setBleConnected(false);
         setBleStatus(null);
+        setTrackingMode('cv');
+        setTargetPositions([0, 0, 0, 0, 0, 0]);
       }
     }, 1000);
     return () => clearInterval(id);
@@ -127,11 +131,12 @@ export default function App() {
 
   // Frame processing
   const lastSendTime = useRef<number>(0);
-  const handleLandmarks = useCallback((landmarks: LandmarkList) => {
+  const lastScoreSampleTime = useRef<number>(0);
+  const handleLandmarks = useCallback((landmarks: LandmarkList, worldLandmarks?: LandmarkList) => {
     setCurrentLandmarks(landmarks);
 
     // Analyze pose relative to baseline
-    const posture = analyzePose(landmarks, baseline);
+    const posture = analyzePose(landmarks, baseline, worldLandmarks);
     if (!posture) return; // incomplete landmark set — skip frame
     setLatestPosture(posture);
 
@@ -142,16 +147,19 @@ export default function App() {
     const now = Date.now();
     if (now - lastSendTime.current >= 100) {
       lastSendTime.current = now;
-      if (bleConnected && trackingMode === 'both' && posture.confidence >= CONFIDENCE_THRESHOLD) {
-        bleManager.sendPositions(positions);
+      if (bleConnected && trackingMode === 'both') {
+        bleManager.sendPositions(
+          posture.confidence >= CONFIDENCE_THRESHOLD ? positions : [0, 0, 0, 0, 0, 0]
+        );
       }
     }
 
-    // Capture score history if session is active
-    if (sessionStartTime) {
+    // Store one sample per second so analytics represent the full session.
+    if (sessionStartTime && now - lastScoreSampleTime.current >= 1000) {
+      lastScoreSampleTime.current = now;
       setSessionScoreHistory(prev => {
         const next = [...prev, { t: Date.now(), score: posture.postureScore }];
-        return next.slice(-60); // Keep last 60 samples
+        return next.slice(-28800); // Up to eight hours at one sample per second.
       });
     }
   }, [baseline, bleConnected, bleManager, mode, sessionStartTime, trackingMode]);
@@ -195,12 +203,14 @@ export default function App() {
   const startSession = () => {
     resetPostureVelocityState();
     resetDecisionState();
+    lastScoreSampleTime.current = 0;
     setSessionStartTime(Date.now());
     setSessionScoreHistory([]);
   };
 
   const endSession = async () => {
     resetDecisionState();
+    lastScoreSampleTime.current = 0;
 
     if (!sessionStartTime || sessionScoreHistory.length === 0) {
       setSessionStartTime(null);
@@ -241,6 +251,39 @@ export default function App() {
     }
   };
 
+  const switchToCvOnly = () => {
+    if (bleConnected && trackingMode === 'both') {
+      bleManager.sendPositions([0, 0, 0, 0, 0, 0]);
+    }
+    setTargetPositions([0, 0, 0, 0, 0, 0]);
+    setTrackingMode('cv');
+  };
+
+  const enableHardwareLoop = () => {
+    if (!bleConnected) {
+      setBleError('Connect the chair before enabling actuator output.');
+      setTimeout(() => setBleError(null), 5000);
+      return;
+    }
+    if (!baseline) {
+      setBleError('Complete posture calibration before enabling actuator output.');
+      setTimeout(() => setBleError(null), 5000);
+      return;
+    }
+    const confirmed = window.confirm(
+      'Enable actuator commands for bench testing? Do not use with a person until the documented hardware safety gate is complete.'
+    );
+    if (confirmed) setTrackingMode('both');
+  };
+
+  const toggleTracking = () => {
+    if (isTracking && bleConnected && trackingMode === 'both') {
+      bleManager.sendPositions([0, 0, 0, 0, 0, 0]);
+      setTargetPositions([0, 0, 0, 0, 0, 0]);
+    }
+    setIsTracking(current => !current);
+  };
+
   const confidencePct = latestPosture ? Math.round(latestPosture.confidence * 100) : 0;
   const confidenceColor = confidencePct >= 65 ? 'var(--accent-green)' : confidencePct >= 40 ? 'var(--accent-orange)' : 'var(--accent-red)';
   const spineVelocity = latestPosture?.velocitySpine ?? 0;
@@ -272,7 +315,7 @@ export default function App() {
           </button>
 
           {/* Camera Button */}
-          <button onClick={() => setIsTracking(!isTracking)} className={`btn ${isTracking ? 'btn-primary' : 'btn-secondary'}`}>
+          <button onClick={toggleTracking} className={`btn ${isTracking ? 'btn-primary' : 'btn-secondary'}`}>
             <span>{isTracking ? 'Stop Camera' : 'Enable Tracking'}</span>
           </button>
         </div>
@@ -341,6 +384,11 @@ export default function App() {
                   {latestPosture.confidence < 0.4 && (
                     <span style={{ color: 'var(--accent-red)', fontSize: '12px' }}>
                       Low detection confidence - move camera closer or improve lighting.
+                    </span>
+                  )}
+                  {latestPosture.measurementSource === 'image-2d' && (
+                    <span style={{ color: 'var(--accent-orange)', fontSize: '12px' }}>
+                      3D landmarks unavailable - actuator commands remain at 0mm.
                     </span>
                   )}
                 </div>
@@ -414,7 +462,7 @@ export default function App() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
-                  onClick={() => setTrackingMode('cv')}
+                  onClick={switchToCvOnly}
                   className="btn"
                   style={{
                     padding: '12px 10px',
@@ -434,7 +482,7 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={() => setTrackingMode('both')}
+                  onClick={enableHardwareLoop}
                   className="btn"
                   style={{
                     padding: '12px 10px',

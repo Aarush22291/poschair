@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.database import Base, get_db
+from src.database import engine as app_engine
 from src.main import app
 
 TEST_DATABASE_URL = "sqlite:///./test_poschair.db"
@@ -35,6 +36,9 @@ def setup_function():
 
 
 def teardown_module():
+    app.dependency_overrides.clear()
+    engine.dispose()
+    app_engine.dispose()
     if os.path.exists("test_poschair.db"):
         os.remove("test_poschair.db")
 
@@ -144,3 +148,36 @@ def test_session_log_and_list_flow():
     sessions = sessions_response.json()
     assert len(sessions) == 1
     assert sessions[0]["pct_good"] == 76.0
+
+
+def test_rejects_invalid_session_percentages():
+    client = TestClient(app)
+    response = client.post(
+        "/sessions/",
+        json={
+            "user_id": 1,
+            "score_avg": 80,
+            "pct_good": 80,
+            "pct_bad": 30,
+            "score_history": [],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rejects_calibration_for_unknown_user():
+    client = TestClient(app)
+    response = client.post(
+        "/calibration/",
+        json={
+            "user_id": 999,
+            "spine_angle_0": 0,
+            "shoulder_width": 0.2,
+            "lateral_angle_0": 0,
+            "neck_angle_0": 10,
+            "torso_length": 0.3,
+        },
+    )
+
+    assert response.status_code == 404

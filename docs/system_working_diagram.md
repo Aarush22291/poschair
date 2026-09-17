@@ -68,7 +68,7 @@ flowchart LR
   BATP["12V battery positive"]
   BATN["12V battery negative"]
   Fuse["Fuse / switch"]
-  Divider["100k / 100k voltage divider"]
+  Divider["120k / 27k divider + 100nF filter"]
 
   subgraph Drivers["BTS7960 drivers"]
     D0["M0 UL driver"]
@@ -181,7 +181,7 @@ flowchart TB
     ConfidenceGate["Confidence gate >= 0.65"]
     Geometry["Spine, lateral, head-offset geometry"]
     Velocity["Spine and lateral velocity calculation"]
-    PositionMapping["0-100mm target mapping"]
+    PositionMapping["0-55mm target mapping"]
     PacketBuild["8-byte BLE command packet"]
     PacketParse["ESP32 checksum validation"]
     BatteryRead["Battery ADC reading"]
@@ -196,9 +196,9 @@ flowchart TB
     BLEPacket["BLE write without response"]
     PWMOut["RPWM / LPWM PWM output"]
     MotorMotion["Motor extend / retract / brake / coast"]
-    PadTravel["Foam pad travel: 0-100mm"]
+    PadTravel["Foam pad travel: 0-55mm"]
     SessionLogs["Session analytics logs"]
-    SafetyRetract["All modules retract to 0mm"]
+    RetractionRequest["Request all modules retract to 0mm"]
   end
 
   CameraFrames --> PoseDetection
@@ -225,9 +225,9 @@ flowchart TB
   PositionMapping --> Dashboard
   Dashboard --> SessionLogs
   PowerOn --> Homing
-  Homing --> SafetyRetract
+  Homing --> RetractionRequest
   BLEDisconnect --> Failsafe
-  Failsafe --> SafetyRetract
+  Failsafe --> RetractionRequest
 ```
 
 ## 3. Browser App Processing Loop
@@ -296,7 +296,7 @@ flowchart LR
   VelocityBonus["Velocity anticipation bonus"]
   LateralSplit["Lateral opposite-column boost"]
   Scale["Apply mode scale"]
-  Clamp["Clamp each value 0-100"]
+  Clamp["Clamp each value 0-55"]
   Hysteresis["Only change if delta >= 3"]
   Positions["[UL, UR, ML, MR, LL, LR] positions"]
 
@@ -327,7 +327,7 @@ sequenceDiagram
   participant MC as MotorController
   participant UI as Dashboard UI
 
-  App->>App: Clamp positions to 0-100
+  App->>App: Clamp positions to 0-55
   App->>App: Build 8-byte packet
   Note over App: A5 UL UR ML MR LL LR XOR
   App->>BLE: writeValueWithoutResponse(command)
@@ -344,7 +344,7 @@ sequenceDiagram
   Note over ESP: 5A flags battery_mV UL UR ML MR LL LR
   ESP->>BLE: notify(status)
   BLE->>App: characteristicvaluechanged
-  App->>UI: Update homed, moving, failsafe, actual positions
+  App->>UI: Update homed, moving, failsafe, estimated positions
 ```
 
 ## 6. ESP32 Firmware Loop
@@ -356,7 +356,7 @@ flowchart TD
   InitMotorPins["Attach RPWM and LPWM PWM pins"]
   EnableDrivers["Set shared EN_PIN HIGH"]
   HomeAll["Run all motors inward for HOMING_TIMEOUT_MS"]
-  ZeroPositions["Set current positions to 0"]
+  ZeroPositions["Set open-loop position estimates to 0"]
   StartBLE["Advertise as POSCHAIR_001"]
   Loop["Main loop"]
   UpdateMotors["MotorController.update"]
@@ -405,8 +405,8 @@ stateDiagram-v2
 
 ```mermaid
 flowchart LR
-  Target["Target position 0-100mm"]
-  Current["Current estimated position"]
+  Target["Target position 0-55mm"]
+  Current["Open-loop estimated position"]
   Delta["delta_mm = abs(target - current)"]
   Speed["MOTOR_SPEED_MM_PER_MS"]
   Duration["duration_ms = delta_mm / speed"]
@@ -414,7 +414,7 @@ flowchart LR
   Out["Extend: RPWM=200 LPWM=0"]
   In["Retract: RPWM=0 LPWM=200"]
   Stop["Stop: RPWM=0 LPWM=0"]
-  Update["Set current = target"]
+  Update["Continuously update open-loop estimate"]
 
   Target --> Delta
   Current --> Delta
@@ -469,7 +469,7 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-  Normal["Normal closed-loop operation"]
+  Normal["Normal vision-guided operation"]
   BadPacket["Bad BLE packet"]
   LowConfidence["Low pose confidence"]
   BLETimeout["No valid BLE command for 2s"]
@@ -481,7 +481,7 @@ flowchart TD
   Retract["Retract all modules to 0mm"]
   Home["Startup homing to 0mm"]
   UIWarn["Show UI warning or disconnected state"]
-  SafeState["Safe mechanical state"]
+  Fallback["Software fallback state (not safety-rated)"]
 
   Normal --> BadPacket
   Normal --> LowConfidence
@@ -490,15 +490,15 @@ flowchart TD
   Normal --> ManualStop
 
   BadPacket --> Drop
-  Drop --> SafeState
+  Drop --> BLETimeout
   LowConfidence --> Hold
-  Hold --> SafeState
+  Hold --> BLETimeout
   BLETimeout --> Retract
-  Retract --> SafeState
+  Retract --> Fallback
   PowerCycle --> Home
-  Home --> SafeState
+  Home --> Fallback
   ManualStop --> UIWarn
-  UIWarn --> SafeState
+  UIWarn --> BLETimeout
 ```
 
 ## 10. Backend Data Flow
@@ -536,9 +536,9 @@ flowchart LR
 | `lateralLeanDeg` | Posture analyzer | Decision engine / UI | Degrees |
 | `velocitySpine` | Posture analyzer | Decision engine / UI | Degrees per second |
 | `confidence` | Pose landmarks | Decision engine / UI | 0.0-1.0 |
-| Target positions | Decision engine | BLE manager | 6 values, 0-100mm |
+| Target positions | Decision engine | BLE manager | 6 values, 0-55mm |
 | Command packet | BLE manager | ESP32 DevKit V1 | 8 bytes |
 | Battery voltage | ESP32 DevKit V1 ADC | Dashboard status packet | Millivolts |
-| Current positions | ESP32 DevKit V1 | Dashboard UI | 6 values, 0-100mm |
+| Estimated positions | ESP32 DevKit V1 | Dashboard UI | 6 values, 0-55mm, open-loop |
 | Motor PWM | ESP32 DevKit V1 | BTS7960 drivers | 0-255 duty |
-| Foam pad travel | Worm-rack actuator | User back | 0-100mm |
+| Foam pad travel | Worm-rack actuator | User back | 0-55mm configured limit |

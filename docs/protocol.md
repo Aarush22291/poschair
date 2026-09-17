@@ -29,12 +29,12 @@ App to ESP32, 8 bytes, write without response. Position units are millimeters.
 | Byte | Field | Type | Description |
 |---|---|---|---|
 | 0 | Header | `uint8_t` | Constant `0xA5` |
-| 1 | UL position | `uint8_t` | 0-100 = 0-100mm |
-| 2 | UR position | `uint8_t` | 0-100 = 0-100mm |
-| 3 | ML position | `uint8_t` | 0-100 = 0-100mm |
-| 4 | MR position | `uint8_t` | 0-100 = 0-100mm |
-| 5 | LL position | `uint8_t` | 0-100 = 0-100mm |
-| 6 | LR position | `uint8_t` | 0-100 = 0-100mm |
+| 1 | UL position | `uint8_t` | 0-55mm |
+| 2 | UR position | `uint8_t` | 0-55mm |
+| 3 | ML position | `uint8_t` | 0-55mm |
+| 4 | MR position | `uint8_t` | 0-55mm |
+| 5 | LL position | `uint8_t` | 0-55mm |
+| 6 | LR position | `uint8_t` | 0-55mm |
 | 7 | Checksum | `uint8_t` | XOR of bytes 0-6 |
 
 ```text
@@ -51,21 +51,24 @@ ESP32 to app, 10 bytes, notify about once per second.
 | 1 | Flags | `uint8_t` | bit0=ok, bit1=failsafe, bit2=homed, bit3=any motor moving |
 | 2 | Battery voltage MSB | `uint8_t` | Big-endian millivolts |
 | 3 | Battery voltage LSB | `uint8_t` | Big-endian millivolts |
-| 4 | UL current position | `uint8_t` | 0-100mm |
-| 5 | UR current position | `uint8_t` | 0-100mm |
-| 6 | ML current position | `uint8_t` | 0-100mm |
-| 7 | MR current position | `uint8_t` | 0-100mm |
-| 8 | LL current position | `uint8_t` | 0-100mm |
-| 9 | LR current position | `uint8_t` | 0-100mm |
+| 4 | UL estimated position | `uint8_t` | 0-55mm |
+| 5 | UR estimated position | `uint8_t` | 0-55mm |
+| 6 | ML estimated position | `uint8_t` | 0-55mm |
+| 7 | MR estimated position | `uint8_t` | 0-55mm |
+| 8 | LL estimated position | `uint8_t` | 0-55mm |
+| 9 | LR estimated position | `uint8_t` | 0-55mm |
 
 ## Test Packets
 
 ```text
 All retracted:         A5 00 00 00 00 00 00 A5
-ML+MR to 50mm:         A5 00 00 32 32 00 00 E5
-Full left column out:  A5 64 00 64 00 64 00 81
-All fully extended:    A5 64 64 64 64 64 64 C5
+ML+MR to 50mm:         A5 00 00 32 32 00 00 A5
+Full left column out:  A5 37 00 37 00 37 00 92
+All fully extended:    A5 37 37 37 37 37 37 A5
 ```
+
+Positions reported in status packets are open-loop time estimates. They are
+not encoder measurements and must not be treated as verified physical travel.
 
 ## Failsafe
 

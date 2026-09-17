@@ -4,10 +4,12 @@
 > **Patent Pending · PosChair Technologies Inc.**  
 > An active posture correction system powered by real-time computer vision, biomechanical kinematic modeling, and a 6-zone motorized paraspinal backrest attachment.
 
-[![Latest Release v1.3](https://img.shields.io/github/v/release/brovk2008/Poschair_final?label=download&color=0284c7)](https://github.com/brovk2008/Poschair_final/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/Aarush22291/poschair?label=download&color=0284c7)](https://github.com/Aarush22291/poschair/releases/latest)
 [![Patent Pending](https://img.shields.io/badge/patent-pending-blue)](LICENSE)
 [![License: Proprietary](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Website](https://img.shields.io/badge/website-poschair--comfort.vercel.app-gray)](https://poschair-comfort.vercel.app)
+
+> **Current readiness:** The software is hardened for prototype evaluation. The powered chair remains an **unoccupied bench prototype** until the [production-readiness hardware gates](docs/production_readiness.md) are completed and independently verified.
 
 ---
 
@@ -34,14 +36,14 @@
 Traditional ergonomic office chairs are **passive support structures**. They only assist your lumbar spine if you maintain ideal posture voluntarily. As fatigue sets in during desk work, users inevitably slump forward (thoracic kyphosis), lean to one side (asymmetric spinal loading), or crane their neck toward the monitor ("tech neck"). Passive chairs do nothing to detect or correct these biomechanical failures.
 
 ### The PosChair Active Solution
-PosChair is an **active closed-loop ergonomic robot**:
-* **Camera Vision Eye:** Tracks 33 3D body landmarks at 60 FPS using MediaPipe Pose executing inside client-side WebAssembly (WASM). No video or coordinate data is ever uploaded to the cloud.
+PosChair is a **vision-guided ergonomic chair prototype**:
+* **Camera Vision Eye:** Tracks 33 3D body landmarks using MediaPipe Pose executing inside client-side WebAssembly (WASM). No video or coordinate data is uploaded by the vision pipeline.
 * **Kinematic Posture Engine:** Calculates spine forward deviation, lateral roll tilt, and neck inclination angle relative to a personalized 5-second baseline pose.
-* **Motorized Actuation Matrix:** A 2×3 grid of 6 motorized worm-rack actuators on the backrest extends up to **55mm**, pressing high-density foam pads into your **paraspinal muscles** (erector spinae and multifidus) to physically push your spine back into alignment.
+* **Motorized Actuation Matrix:** A 2×3 grid of 6 motorized worm-rack actuators provides up to **55mm** of configured prototype travel. Occupied operation requires the independent limits, force controls, and emergency stop listed in the hardware safety gate.
 
 ```text
 +-----------------------------------------------------------------------------------+
-|                                 POSCHAIR CLOSED LOOP                              |
+|                           POSCHAIR VISION-GUIDED PROTOTYPE                        |
 |                                                                                   |
 |  [ User sitting ] ---> [ Browser Webcam ] ---> [ MediaPipe Pose WASM (33 Points) ]|
 |          ^                                                   |                    |
@@ -154,7 +156,7 @@ When you open the application at `http://localhost:5173`, the dashboard provides
 * **Vibrant Blue Oval Chair Backrest Diagram (`front side of chair`):** Represents the physical backrest layout.
 * **6 Actuator Nodes (`UL`, `UR`, `ML`, `MR`, `LL`, `LR`):**
   * **Bright Yellow (`0mm`):** Motor is idle/resting.
-  * **Glowing Red + Pulse (`1–55mm`):** Motor is actively extending/rotating to push your spine.
+  * **Glowing Red + Pulse (`1–55mm`):** The prototype is commanding actuator extension.
   * **Real-time Readout:** Displays exact millimeter extension inside each circle.
 
 #### 3. 5-Second Baseline Calibration (`CalibrationModal.tsx`)
@@ -235,7 +237,11 @@ ROW 3:  [ M4 - LL ]         [ M5 - LR ]      Lower Lumbar / Pelvis
 | **BTS7960 Motor Driver** | 6 | High-current H-Bridge drivers (1 per motor) |
 | **DC Geared Motors** | 6 | High-torque 12V DC geared motors with worm-racks |
 | **12V Motor Battery/Power**| 1 | Dedicated 12V 10A+ motor power supply |
-| **100kΩ Resistors** | 2 | Battery voltage sensing divider circuit |
+| **120kΩ Resistor** | 1 | Battery divider high-side resistor |
+| **27kΩ Resistor** | 1 | Battery divider low-side resistor |
+| **100nF Capacitor** | 1 | ADC midpoint filtering capacitor |
+| **Inline Fuse** | 1 | Sized for the motor supply and wiring |
+| **Latching Emergency Stop** | 1 | Required before any occupied-chair testing |
 | **Common Ground Bus** | 1 | Required common ground line |
 
 ---
@@ -280,13 +286,19 @@ ROW 3:  [ M4 - LL ]         [ M5 - LR ]      Lower Lumbar / Pelvis
 ---
 
 ### Battery Voltage Sensing Circuit
-Connect two 100kΩ resistors to measure battery voltage on `GPIO34`:
+Use a 120kΩ/27kΩ divider to keep the ESP32 ADC input below 3.3V throughout the supported 0-15V motor-supply range. Add a 100nF capacitor from the ADC midpoint to ground:
 
 ```text
-12V Battery Positive ---- [ 100kΩ R1 ] ----+---- [ 100kΩ R2 ] ---- Ground Bus
-                                           |
-                                     ESP32 GPIO34
+12V Battery Positive ---- [ 120kΩ R1 ] ----+---- [ 27kΩ R2 ] ---- Ground Bus
+                                            |
+                                      ESP32 GPIO34
+                                            |
+                                         [100nF]
+                                            |
+                                      Ground Bus
 ```
+
+> **Do not use the former 100kΩ/100kΩ divider.** A 12V input would place about 6V at the midpoint, above the ESP32 ADC pin limit and capable of damaging the controller.
 
 ---
 
@@ -316,9 +328,9 @@ $$\text{Checksum} = B_0 \oplus B_1 \oplus B_2 \oplus B_3 \oplus B_4 \oplus B_5 \
 
 ```text
 All Motors Home (0mm):           A5 00 00 00 00 00 00 A5
-Mid Lumbar Actuation (32mm):     A5 00 00 20 20 00 00 85
-Right Column Full Out (55mm):    A5 00 37 00 37 00 37 A0
-Full Matrix Out (55mm):          A5 37 37 37 37 37 37 92
+Mid Lumbar Actuation (32mm):     A5 00 00 20 20 00 00 A5
+Right Column Full Out (55mm):    A5 00 37 00 37 00 37 92
+Full Matrix Out (55mm):          A5 37 37 37 37 37 37 A5
 ```
 
 ---
@@ -389,7 +401,7 @@ poschair_final/
 │   │   │   ├── postureAnalyzer.ts # EMA filter, neck inclination, posture score math
 │   │   │   ├── decisionEngine.ts  # Paraspinal matrix position mapping & velocity bonus
 │   │   │   ├── bleManager.ts      # Web Bluetooth manager & 8-byte XOR packet encoder
-│   │   │   ├── apiClient.ts       # Backend REST API client
+│   │   │   ├── apiClient.ts       # Backend REST client + packaged local storage
 │   │   │   └── components/
 │   │   │       ├── CameraView.tsx # Video feed, 33-landmark skeleton, hardware diagram
 │   │   │       ├── SpineVisualizer.tsx # 2x3 grid actuator dual progress bars
@@ -409,11 +421,13 @@ poschair_final/
 │   ├── poschair_firmware/      # Main ESP32 BLE peripheral & motor controller firmware
 │   │   ├── poschair_firmware.ino
 │   │   ├── config.h            # Pinouts, MAX_POSITION_MM (55mm), watchdog constants
-│   │   └── MotorController.h   # Timed open-loop position calculation engine
-│   └── poschair_motor_test/    # Standalone 1-motor direction & speed calibration sketch
+│   │   ├── motor_controller.h  # Timed open-loop position calculation engine
+│   │   └── motor_controller.cpp
+│   └── test/                   # Standalone direction, cycle, and battery bench-test sketch
 ├── docs/
 │   ├── hardware_wiring.md      # Pinout schematics, power wiring & assembly checklist
 │   ├── protocol.md             # Complete BLE binary protocol specification
+│   ├── production_readiness.md # Human-use gates, evidence, and funding milestones
 │   └── system_working_diagram.md # End-to-end Mermaid system flow diagrams
 └── website/                    # Next.js Marketing & Interactive Documentation Site
     ├── src/
@@ -454,10 +468,12 @@ poschair_final/
 
 ## 🛡️ 11. Safety & Watchdog Failsafe Systems
 
-1. **2000ms Bluetooth Watchdog:** If command packets cease for more than 2 seconds, the ESP32 automatically sets the failsafe flag and retracts all 6 actuators back to `0mm` home.
-2. **Startup Homing Cycle:** Every boot forces a retraction cycle to guarantee all actuators start at `0mm` before accepting BLE commands.
-3. **Physical Travel Clamping:** The firmware hard-clamps all module commands to `MAX_POSITION_MM = 55mm` regardless of input values.
-4. **Emergency Mechanical Retraction:** Powering off the 12V motor supply immediately releases motor holding torque, allowing pre-curved flex strips to relax safely.
+1. **Best-Effort Bluetooth Watchdog:** If valid command packets cease for more than 2 seconds, the firmware requests retraction to `0mm`. This is not a safety-rated control and cannot prove that an actuator physically moved.
+2. **Bench-Only Startup Homing:** Every boot runs each motor inward for a fixed time and then sets its software estimate to `0mm`. Until independent limit switches or encoders are fitted, this can stall a motor and does not guarantee physical home.
+3. **Command Clamping:** Firmware clamps requested travel to `MAX_POSITION_MM = 55mm`. Reported positions are open-loop estimates, not measurements.
+4. **Hardware Safety Gate:** Do not test the chair with a person until it has a normally-closed latching emergency stop, independent travel limits, current/force monitoring, mechanical stops, protected motor channels, and verified pressure/force limits. See [Hardware Wiring](docs/hardware_wiring.md#human-use-hardware-gate).
+
+Cutting motor power is not guaranteed to retract or release a geared actuator. The emergency stop must be designed around the measured behavior of the final mechanism.
 
 ---
 

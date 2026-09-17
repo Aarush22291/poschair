@@ -16,7 +16,8 @@ public:
   void stopAll();
 
 private:
-  uint8_t _currentPos[NUM_MODULES] = {0, 0, 0, 0, 0, 0};
+  float _estimatedPos[NUM_MODULES] = {0, 0, 0, 0, 0, 0};
+  float _moveStartPos[NUM_MODULES] = {0, 0, 0, 0, 0, 0};
   uint8_t _targetPos[NUM_MODULES] = {0, 0, 0, 0, 0, 0};
   MotorState _state[NUM_MODULES] = {
     MotorState::IDLE, MotorState::IDLE, MotorState::IDLE,
@@ -30,5 +31,6 @@ private:
   void _driveIn(int idx, uint8_t pwm);
   void _stop(int idx);
   void _brake(int idx);
-  unsigned long _durationForDelta(uint8_t fromPos, uint8_t toPos) const;
+  void _updateEstimatedPosition(int idx, unsigned long now);
+  unsigned long _durationForDelta(float fromPos, uint8_t toPos) const;
 };
